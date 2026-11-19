@@ -1,0 +1,2 @@
+# Placeholder to preserve assets/models directory in git.
+# Actual model binaries (.bin, .param) are downloaded via scripts/fetch_models.sh or CI workflows.

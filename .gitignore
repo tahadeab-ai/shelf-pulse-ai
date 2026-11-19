@@ -1,0 +1,38 @@
+# Gradle & Android build
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+
+# Local IDE configuration
+.idea/
+*.iml
+.cxx/
+local.properties
+Captures/
+.externalNativeBuild/
+
+# Native binaries, weights & models (Strict no-bloat policy)
+app/src/main/assets/models/*.bin
+app/src/main/assets/models/*.param
+!app/src/main/assets/models/.gitkeep
+*.pt
+*.onnx
+*.engine
+*.tflite
+*.hprof
+
+# Third-party prebuilts & native sdk downloads
+app/src/main/cpp/third_party/
+third_party/
+downloads/
+
+# OS and system files
+.DS_Store
+Thumbs.db
+
+# Test artifacts and captured traces
+*.log
+docs/assets/recordings/
