@@ -44,7 +44,6 @@ android {
         }
         debug {
             isDebuggable = true
-            jniDebuggable = true
         }
     }
 
