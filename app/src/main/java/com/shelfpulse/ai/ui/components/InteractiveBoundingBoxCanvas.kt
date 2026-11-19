@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelfpulse.ai.domain.model.DetectionResult
 import com.shelfpulse.ai.ui.theme.*
