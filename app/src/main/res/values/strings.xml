@@ -1,0 +1,53 @@
+<resources>
+    <string name="app_name">ShelfPulse AI</string>
+    <string name="tab_snap_verify">Snap &amp; Verify</string>
+    <string name="tab_live_scan">Live Scan</string>
+    <string name="tab_history">History</string>
+
+    <!-- Snap & Verify -->
+    <string name="snap_title">Snap &amp; Verify Mode</string>
+    <string name="btn_capture">Capture &amp; Count</string>
+    <string name="btn_retake">Retake</string>
+    <string name="btn_save_session">Save Session</string>
+    <string name="txt_products_detected">Products Detected</string>
+    <string name="hint_tap_to_add">Tap product to add manual count (+1)</string>
+    <string name="hint_tap_box_to_remove">Tap bounding box to toggle/remove (-1)</string>
+    <string name="dialog_session_title">Save Inventory Session</string>
+    <string name="lbl_shelf_aisle">Shelf / Aisle Reference</string>
+    <string name="hint_shelf_aisle">e.g., Aisle 4 - Shelf B</string>
+    <string name="lbl_notes">Operator Notes</string>
+    <string name="hint_notes">e.g., Beverage stock replenished</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_cancel">Cancel</string>
+
+    <!-- Live Scan -->
+    <string name="live_scan_title">Real-Time Live Scan</string>
+    <string name="btn_pause">Pause</string>
+    <string name="btn_resume">Resume</string>
+    <string name="btn_reset_counter">Reset</string>
+    <string name="btn_torch">Torch</string>
+    <string name="txt_live_count">Live Count</string>
+    <string name="txt_unique_skus">Active Tracks</string>
+    <string name="lbl_conf_thresh">Confidence Threshold: %1$.2f</string>
+    <string name="lbl_nms_thresh">NMS Threshold: %1$.2f</string>
+    <string name="lbl_telemetry">Telemetry</string>
+    <string name="telemetry_chip">%1$.1f FPS | %2$.1f ms | %3$s</string>
+    <string name="vulkan_gpu">Vulkan GPU</string>
+    <string name="cpu_neon">CPU NEON</string>
+
+    <!-- History -->
+    <string name="history_title">Inventory Records</string>
+    <string name="btn_export_csv">Export CSV</string>
+    <string name="txt_no_records">No inventory records saved yet.</string>
+    <string name="txt_items_counted">%1$d items</string>
+    <string name="csv_export_success">CSV exported successfully</string>
+    <string name="csv_share_title">Share Inventory Report</string>
+
+    <!-- Permissions -->
+    <string name="camera_permission_required">Camera permission is required for real-time inventory counting.</string>
+    <string name="btn_grant_permission">Grant Permission</string>
+
+    <!-- Diagnostics -->
+    <string name="model_missing_title">NCNN Model Weights Missing</string>
+    <string name="model_missing_msg">Please place model.ncnn.param and model.ncnn.bin in assets/models/, or run scripts/fetch_models.sh.</string>
+</resources>
