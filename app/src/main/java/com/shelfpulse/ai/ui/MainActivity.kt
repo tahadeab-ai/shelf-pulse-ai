@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                     if (modelStatus.isReady) {
                         app.nativeEngine.initialize(
                             paramPath = modelStatus.paramPath!!,
-                            binPath = modelStatus.binPath!,
+                            binPath = modelStatus.binPath!!,
                             useGpu = true
                         )
                     }
