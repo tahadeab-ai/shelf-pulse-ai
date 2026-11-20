@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/cpp/third_party
-          key: native-deps-ncnn-20241226-opencv-4.10.0-eigen-3.4.0
+          key: native-deps-ncnn-20261020-opencv-4.10.0-eigen-3.4.0
 
       - name: Fetch Native Dependencies (if not cached)
         if: steps.cache-native-deps.outputs.cache-hit != 'true'

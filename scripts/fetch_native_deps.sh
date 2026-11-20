@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ShelfPulse AI - Native Dependencies Fetcher
 # Pinned versions:
-# - ncnn: 20241226 (vulkan + android)
+# - ncnn: 20261020 (vulkan + android)
 # - opencv-mobile: 4.10.0
 # - eigen: 3.4.0 (header-only)
 
@@ -14,8 +14,8 @@ TARGET_DIR="$PROJECT_ROOT/app/src/main/cpp/third_party"
 mkdir -p "$TARGET_DIR"
 cd "$TARGET_DIR"
 
-echo "=== [1/3] Fetching ncnn-android-vulkan (20241226) ==="
-NCNN_VERSION="20241226"
+echo "=== [1/3] Fetching ncnn-android-vulkan (20261020) ==="
+NCNN_VERSION="20261020"
 NCNN_URL="https://github.com/Tencent/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan.zip"
 if [ ! -d "ncnn-android-vulkan" ]; then
     echo "Downloading NCNN from $NCNN_URL..."
