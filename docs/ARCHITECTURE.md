@@ -95,23 +95,24 @@ sequenceDiagram
     participant Engine as Yolo11Ncnn + ByteTrack
     participant UI as Jetpack Compose HUD
 
-    CameraX->>JNI: detectYuvPlanes(yBuf, uBuf, vBuf, strides, rotation)
+    CameraX->>JNI: detectRgba(rgbaBuf, width, height, rowStride, rotation)
     Note over JNI: std::lock_guard<std::mutex>
-    JNI->>Engine: Reconstruct YUV with cv::Mat (Zero Copy)
-    Engine->>Engine: Fast Upright Rotation (90°/180°/270°)
-    Engine->>Engine: Letterbox Resize to 640x640
-    Engine->>Engine: NCNN Vulkan Inference
-    Engine->>Engine: ByteTrack Kalman Update
-    Engine-->>JNI: vector<TrackedObject> + Telemetry (ms, FPS)
-    JNI-->>CameraX: Compact float[] / long[] payload
+    JNI->>Engine: Stride Handling & kanna_rotate_c4 (Zero Alloc)
+    Engine->>Engine: Letterbox Resize via from_pixels (640x640)
+    Engine->>Engine: NCNN Inference (CPU NEON / Vulkan GPU)
+    Engine->>Engine: ByteTrack Kalman 8D Update
+    Engine-->>JNI: StageTimings (pre, inf, trk, total) + Detections
+    JNI-->>CameraX: Compact float[] payload with telemetry
     CameraX-->>UI: StateFlow emit (Bounding Boxes + IDs + Metrics)
 ```
 
 ### CameraX Stride & Rotation Handling
 Mobile camera sensors produce non-contiguous row strides (e.g. padding bytes at row boundaries):
-- `jni_bridge.cpp` receives `yRowStride`, `uvRowStride`, `uvPixelStride`, and `rotationDegrees`.
-- Planes are mapped directly into `cv::Mat` headers without intermediate memory copies.
-- For portrait orientation (e.g. 90° clockwise rotation on Samsung devices), `cv::rotate` is executed prior to letterbox inference, ensuring 100% orientation fidelity.
+- CameraX is configured with `OUTPUT_IMAGE_FORMAT_RGBA_8888` and `ResolutionSelector(640x480)` using `STRATEGY_KEEP_ONLY_LATEST`.
+- `jni_bridge.cpp` receives the direct `ByteBuffer` address, row stride, and sensor rotation.
+- If row padding exists, rows are copied into a reusable pre-allocated buffer (`s_rgba_contiguous`), eliminating per-frame heap allocations.
+- Upright orientation rotation is performed natively in C++ via `ncnn::kanna_rotate_c4` directly into a reusable buffer (`s_rotated_rgba`), completely eliminating the scalar byte-packing loop and OpenCV `cv::rotate` CPU bottleneck.
+- Inference tensor construction uses `ncnn::Mat::from_pixels` with explicit row byte stride, keeping preprocessing latency down to **1.6 – 2.5 ms**.
 
 ---
 
