@@ -171,14 +171,19 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
         return {};
     }
 
-    int active_target_size = (target_size > 0) ? target_size : target_size_;
+    // model.ncnn.param uses static 640x640 anchors (8400 total)
+    int active_target_size = 640;
+    if (target_size > 0 && target_size != 640) {
+        LOGW("Model anchors are static 640x640 (8400 anchors). Clamping target_size %d -> 640", target_size);
+    }
 
-    // Convert raw frame to ncnn::Mat RGB
+    // Convert raw frame to ncnn::Mat RGB with explicit row stride
     ncnn::Mat in_rgb;
+    int step_bytes = (frame.step > 0) ? frame.step : (frame.width * frame.channels);
     if (frame.channels == 4) {
-        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGBA2RGB, frame.width, frame.height);
+        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGBA2RGB, frame.width, frame.height, step_bytes);
     } else if (frame.channels == 3) {
-        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGB, frame.width, frame.height);
+        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGB, frame.width, frame.height, step_bytes);
     } else {
         LOGE("Unsupported frame channel count: %d", frame.channels);
         return {};

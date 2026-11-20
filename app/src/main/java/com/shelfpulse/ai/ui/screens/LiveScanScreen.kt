@@ -90,17 +90,20 @@ fun LiveScanScreen(
                         .build()
 
                     imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                        val plane = imageProxy.planes[0]
-                        val rotation = imageProxy.imageInfo.rotationDegrees
+                        try {
+                            val plane = imageProxy.planes[0]
+                            val rotation = imageProxy.imageInfo.rotationDegrees
 
-                        viewModel.processRgbaFrame(
-                            rgbaBuffer = plane.buffer,
-                            width = imageProxy.width,
-                            height = imageProxy.height,
-                            rowStride = plane.rowStride,
-                            rotationDegrees = rotation
-                        )
-                        imageProxy.close()
+                            viewModel.processRgbaFrame(
+                                rgbaBuffer = plane.buffer,
+                                width = imageProxy.width,
+                                height = imageProxy.height,
+                                rowStride = plane.rowStride,
+                                rotationDegrees = rotation
+                            )
+                        } finally {
+                            imageProxy.close()
+                        }
                     }
 
                     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
