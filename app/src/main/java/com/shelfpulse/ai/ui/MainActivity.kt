@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
                         app.nativeEngine.initialize(
                             paramPath = modelStatus.paramPath!!,
                             binPath = modelStatus.binPath!!,
-                            useGpu = true
+                            useGpu = false // Default to CPU (4 big cores, ARM NEON FP16) on Adreno 640
                         )
                     }
                 }

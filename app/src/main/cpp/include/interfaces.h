@@ -31,13 +31,23 @@ struct ImageFrame {
     int rotation_degrees;
 };
 
+struct StageTimings {
+    float preprocess_ms;
+    float infer_ms;
+    float track_ms;
+    float total_ms;
+
+    StageTimings() : preprocess_ms(0.0f), infer_ms(0.0f), track_ms(0.0f), total_ms(0.0f) {}
+};
+
 // Abstract Detector Interface
 class IDetector {
 public:
     virtual ~IDetector() = default;
     virtual bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) = 0;
-    virtual std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh) = 0;
+    virtual std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) = 0;
     virtual bool is_gpu_active() const = 0;
+    virtual bool set_backend(bool use_gpu) = 0;
 };
 
 // Abstract Tracker Interface (ByteTrack)

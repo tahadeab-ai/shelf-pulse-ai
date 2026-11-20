@@ -22,11 +22,24 @@ class ShelfPulseNativeEngine {
     }
 
     private external fun nativeInit(paramPath: String, binPath: String, useGpu: Boolean): Boolean
+    private external fun nativeSetBackend(useGpu: Boolean): Boolean
     private external fun nativeDetectBitmap(
         bitmap: Bitmap,
         confThresh: Float,
         nmsThresh: Float,
         enableTracking: Boolean
+    ): FloatArray
+
+    private external fun nativeDetectRgba(
+        rgbaBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        rowStride: Int,
+        rotationDegrees: Int,
+        confThresh: Float,
+        nmsThresh: Float,
+        enableTracking: Boolean,
+        targetSize: Int
     ): FloatArray
 
     private external fun nativeDetectYuv(
@@ -56,6 +69,15 @@ class ShelfPulseNativeEngine {
         }
     }
 
+    fun setBackend(useGpu: Boolean): Boolean {
+        return try {
+            nativeSetBackend(useGpu)
+        } catch (t: Throwable) {
+            Log.e(TAG, "nativeSetBackend exception", t)
+            false
+        }
+    }
+
     fun detectBitmap(
         bitmap: Bitmap,
         confThresh: Float = 0.40f,
@@ -63,6 +85,29 @@ class ShelfPulseNativeEngine {
         enableTracking: Boolean = false
     ): Pair<List<DetectionResult>, Telemetry> {
         val rawArray = nativeDetectBitmap(bitmap, confThresh, nmsThresh, enableTracking)
+        return parseRawOutput(rawArray)
+    }
+
+    fun detectRgba(
+        rgbaBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        rowStride: Int,
+        rotationDegrees: Int,
+        confThresh: Float = 0.40f,
+        nmsThresh: Float = 0.45f,
+        enableTracking: Boolean = true,
+        targetSize: Int = 320
+    ): Pair<List<DetectionResult>, Telemetry> {
+        val rawArray = nativeDetectRgba(
+            rgbaBuffer,
+            width, height,
+            rowStride,
+            rotationDegrees,
+            confThresh, nmsThresh,
+            enableTracking,
+            targetSize
+        )
         return parseRawOutput(rawArray)
     }
 
@@ -112,19 +157,28 @@ class ShelfPulseNativeEngine {
         }
 
         val numDets = rawArray[0].toInt()
-        val latencyMs = rawArray[1]
+        val totalMs = rawArray[1]
         val isGpu = rawArray[2] > 0.5f
 
-        val fps = if (latencyMs > 0f) (1000f / latencyMs).coerceAtMost(120f) else 0f
+        val hasExtendedTimings = rawArray.size >= 6
+        val prepMs = if (hasExtendedTimings) rawArray[3] else 0f
+        val inferMs = if (hasExtendedTimings) rawArray[4] else totalMs
+        val trkMs = if (hasExtendedTimings) rawArray[5] else 0f
+        val detHeaderSize = if (hasExtendedTimings) 6 else 3
+
+        val fps = if (totalMs > 0f) (1000f / totalMs).coerceAtMost(120f) else 0f
         val telemetry = Telemetry(
             fps = fps,
-            inferenceLatencyMs = latencyMs,
+            inferenceLatencyMs = inferMs,
+            preprocessMs = prepMs,
+            trackMs = trkMs,
+            totalLatencyMs = totalMs,
             isVulkanActive = isGpu
         )
 
         val detections = ArrayList<DetectionResult>(numDets)
         for (i in 0 until numDets) {
-            val offset = 3 + i * 7
+            val offset = detHeaderSize + i * 7
             if (offset + 6 < rawArray.size) {
                 val x1 = rawArray[offset + 0]
                 val y1 = rawArray[offset + 1]

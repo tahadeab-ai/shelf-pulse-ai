@@ -26,7 +26,9 @@ data class LiveScanUiState(
     val isPaused: Boolean = false,
     val isTorchOn: Boolean = false,
     val confThresh: Float = 0.40f,
-    val nmsThresh: Float = 0.45f
+    val nmsThresh: Float = 0.45f,
+    val isVulkanBackend: Boolean = false,
+    val targetResolution: Int = 320
 )
 
 class LiveScanViewModel(
@@ -39,6 +41,81 @@ class LiveScanViewModel(
 
     private val isProcessing = AtomicBoolean(false)
     private val seenTrackIds = HashSet<Int>()
+
+    private var lastFrameTimeNs: Long = 0L
+    private var smoothedFps: Float = 0f
+
+    fun processRgbaFrame(
+        rgbaBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        rowStride: Int,
+        rotationDegrees: Int
+    ) {
+        if (_uiState.value.isPaused) return
+        if (!isProcessing.compareAndSet(false, true)) return
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val nowNs = System.nanoTime()
+                val wallFps = if (lastFrameTimeNs > 0L) {
+                    val dtSec = (nowNs - lastFrameTimeNs) / 1_000_000_000.0f
+                    if (dtSec > 0f) (1.0f / dtSec).coerceAtMost(120f) else 0f
+                } else 0f
+                lastFrameTimeNs = nowNs
+
+                // Exponential Moving Average (alpha = 0.2)
+                smoothedFps = if (smoothedFps == 0f) {
+                    wallFps
+                } else {
+                    0.2f * wallFps + 0.8f * smoothedFps
+                }
+
+                val orientedWidth = if (rotationDegrees == 90 || rotationDegrees == 270) height else width
+                val orientedHeight = if (rotationDegrees == 90 || rotationDegrees == 270) width else height
+
+                val (detections, telem) = nativeEngine.detectRgba(
+                    rgbaBuffer = rgbaBuffer,
+                    width = width,
+                    height = height,
+                    rowStride = rowStride,
+                    rotationDegrees = rotationDegrees,
+                    confThresh = _uiState.value.confThresh,
+                    nmsThresh = _uiState.value.nmsThresh,
+                    enableTracking = true,
+                    targetSize = _uiState.value.targetResolution
+                )
+
+                // Track unique cumulative track IDs
+                synchronized(seenTrackIds) {
+                    for (det in detections) {
+                        if (det.trackId > 0) {
+                            seenTrackIds.add(det.trackId)
+                        }
+                    }
+                }
+
+                val currentCumulative = synchronized(seenTrackIds) { seenTrackIds.size }
+                val updatedTelemetry = telem.copy(
+                    fps = if (smoothedFps > 0f) smoothedFps else telem.fps,
+                    targetResolution = _uiState.value.targetResolution
+                )
+
+                _uiState.update {
+                    it.copy(
+                        activeDetections = detections,
+                        frameWidth = orientedWidth,
+                        frameHeight = orientedHeight,
+                        cumulativeTrackCount = currentCumulative,
+                        telemetry = updatedTelemetry,
+                        isVulkanBackend = updatedTelemetry.isVulkanActive
+                    )
+                }
+            } finally {
+                isProcessing.set(false)
+            }
+        }
+    }
 
     fun processFrame(
         yBuffer: ByteBuffer,
@@ -56,6 +133,20 @@ class LiveScanViewModel(
 
         viewModelScope.launch(Dispatchers.Default) {
             try {
+                val nowNs = System.nanoTime()
+                val wallFps = if (lastFrameTimeNs > 0L) {
+                    val dtSec = (nowNs - lastFrameTimeNs) / 1_000_000_000.0f
+                    if (dtSec > 0f) (1.0f / dtSec).coerceAtMost(120f) else 0f
+                } else 0f
+                lastFrameTimeNs = nowNs
+
+                // Exponential Moving Average (alpha = 0.2)
+                smoothedFps = if (smoothedFps == 0f) {
+                    wallFps
+                } else {
+                    0.2f * wallFps + 0.8f * smoothedFps
+                }
+
                 val orientedWidth = if (rotationDegrees == 90 || rotationDegrees == 270) height else width
                 val orientedHeight = if (rotationDegrees == 90 || rotationDegrees == 270) width else height
 
@@ -84,6 +175,10 @@ class LiveScanViewModel(
                 }
 
                 val currentCumulative = synchronized(seenTrackIds) { seenTrackIds.size }
+                val updatedTelemetry = telem.copy(
+                    fps = if (smoothedFps > 0f) smoothedFps else telem.fps,
+                    targetResolution = _uiState.value.targetResolution
+                )
 
                 _uiState.update {
                     it.copy(
@@ -91,13 +186,32 @@ class LiveScanViewModel(
                         frameWidth = orientedWidth,
                         frameHeight = orientedHeight,
                         cumulativeTrackCount = currentCumulative,
-                        telemetry = telem
+                        telemetry = updatedTelemetry,
+                        isVulkanBackend = updatedTelemetry.isVulkanActive
                     )
                 }
             } finally {
                 isProcessing.set(false)
             }
         }
+    }
+
+    fun toggleBackend() {
+        val nextGpu = !_uiState.value.isVulkanBackend
+        val success = nativeEngine.setBackend(nextGpu)
+        if (success) {
+            _uiState.update {
+                it.copy(
+                    isVulkanBackend = nextGpu,
+                    telemetry = it.telemetry.copy(isVulkanActive = nextGpu)
+                )
+            }
+        }
+    }
+
+    fun toggleResolution() {
+        val nextRes = if (_uiState.value.targetResolution == 320) 640 else 320
+        _uiState.update { it.copy(targetResolution = nextRes) }
     }
 
     fun togglePause() {

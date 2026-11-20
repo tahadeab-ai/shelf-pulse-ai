@@ -25,7 +25,9 @@ import com.shelfpulse.ai.ui.theme.*
 @Composable
 fun TelemetryChip(
     telemetry: Telemetry,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onToggleBackend: (() -> Unit)? = null,
+    onToggleResolution: (() -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -35,6 +37,8 @@ fun TelemetryChip(
         stringResource(R.string.cpu_neon)
     }
 
+    val displayLatency = if (telemetry.totalLatencyMs > 0f) telemetry.totalLatencyMs else telemetry.inferenceLatencyMs
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -43,41 +47,78 @@ fun TelemetryChip(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            // Pulse indicator dot
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (telemetry.isVulkanActive) Cyan400 else Amber500)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Pulse indicator dot
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (telemetry.isVulkanActive) Cyan400 else Amber500)
+                )
 
-            // Primary display
-            Text(
-                text = String.format(
-                    java.util.Locale.US,
-                    "%.1f FPS | %.0f ms",
-                    telemetry.fps,
-                    telemetry.inferenceLatencyMs
-                ),
-                color = Slate100,
-                fontSize = 12.sp
-            )
+                // Primary display (Smoothed Wall-clock FPS + Total Wall Latency)
+                Text(
+                    text = String.format(
+                        java.util.Locale.US,
+                        "%.1f FPS | %.1f ms",
+                        telemetry.fps,
+                        displayLatency
+                    ),
+                    color = Slate100,
+                    fontSize = 12.sp
+                )
 
+                Text(
+                    text = "|",
+                    color = Slate600,
+                    fontSize = 12.sp
+                )
+
+                // Clickable backend badge
+                Text(
+                    text = backendName,
+                    color = if (telemetry.isVulkanActive) Cyan400 else Amber500,
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable(enabled = onToggleBackend != null) {
+                        onToggleBackend?.invoke()
+                    }
+                )
+            }
+
+            // Detailed Stage breakdown: Pre | Inf | Trk
             AnimatedVisibility(visible = expanded) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(top = 2.dp)
                 ) {
-                    Text(text = "|", color = Slate600, fontSize = 12.sp)
                     Text(
-                        text = backendName,
-                        color = if (telemetry.isVulkanActive) Cyan400 else Amber500,
-                        fontSize = 12.sp
+                        text = String.format(
+                            java.util.Locale.US,
+                            "Pre: %.1fms | Inf: %.1fms | Trk: %.1fms",
+                            telemetry.preprocessMs,
+                            telemetry.inferenceLatencyMs,
+                            telemetry.trackMs
+                        ),
+                        color = Slate400,
+                        fontSize = 10.sp
                     )
+
+                    if (onToggleResolution != null) {
+                        Text(
+                            text = "Target Size: ${telemetry.targetResolution}px (Tap to toggle)",
+                            color = Cyan400,
+                            fontSize = 10.sp,
+                            modifier = Modifier.clickable { onToggleResolution() }
+                        )
+                    }
                 }
             }
         }

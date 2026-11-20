@@ -1,6 +1,9 @@
 package com.shelfpulse.ai.ui.screens
 
+import android.util.Size
 import androidx.camera.core.*
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
@@ -71,24 +74,30 @@ fun LiveScanScreen(
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
+                    val resolutionSelector = ResolutionSelector.Builder()
+                        .setResolutionStrategy(
+                            ResolutionStrategy(
+                                Size(640, 480),
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER
+                            )
+                        )
+                        .build()
+
                     val imageAnalysis = ImageAnalysis.Builder()
+                        .setResolutionSelector(resolutionSelector)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                         .build()
 
                     imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                        val planes = imageProxy.planes
+                        val plane = imageProxy.planes[0]
                         val rotation = imageProxy.imageInfo.rotationDegrees
 
-                        viewModel.processFrame(
-                            yBuffer = planes[0].buffer,
-                            uBuffer = planes[1].buffer,
-                            vBuffer = planes[2].buffer,
+                        viewModel.processRgbaFrame(
+                            rgbaBuffer = plane.buffer,
                             width = imageProxy.width,
                             height = imageProxy.height,
-                            yRowStride = planes[0].rowStride,
-                            uvRowStride = planes[1].rowStride,
-                            uvPixelStride = planes[1].pixelStride,
+                            rowStride = plane.rowStride,
                             rotationDegrees = rotation
                         )
                         imageProxy.close()
@@ -176,7 +185,11 @@ fun LiveScanScreen(
                 }
             }
 
-            TelemetryChip(telemetry = uiState.telemetry)
+            TelemetryChip(
+                telemetry = uiState.telemetry,
+                onToggleBackend = { viewModel.toggleBackend() },
+                onToggleResolution = { viewModel.toggleResolution() }
+            )
         }
 
         // Bottom Controls HUD

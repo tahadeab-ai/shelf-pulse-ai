@@ -16,8 +16,12 @@ public:
     ~Yolo11Ncnn() override;
 
     bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) override;
-    std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh) override;
+    std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) override;
     bool is_gpu_active() const override { return has_gpu_; }
+    bool set_backend(bool use_gpu) override;
+
+    void set_target_size(int target_size) { target_size_ = target_size; }
+    int get_target_size() const { return target_size_; }
 
 private:
     struct LetterboxInfo {
@@ -28,7 +32,7 @@ private:
         float pad_h;
     };
 
-    void preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, LetterboxInfo& info);
+    void preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, LetterboxInfo& info, int target_size);
     void nms_sorted_bboxes(const std::vector<Detection>& bboxes, std::vector<int>& picked, float nms_threshold);
 
     ncnn::Net net_;
@@ -36,6 +40,8 @@ private:
     bool has_gpu_;
     int num_threads_;
     int target_size_;
+    std::string cached_param_path_;
+    std::string cached_bin_path_;
     mutable std::mutex inference_mutex_;
 };
 

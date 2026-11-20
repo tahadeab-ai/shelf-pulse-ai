@@ -45,6 +45,8 @@ bool Yolo11Ncnn::load_model(const std::string& param_path, const std::string& bi
     std::lock_guard<std::mutex> lock(inference_mutex_);
     net_.clear();
     has_gpu_ = false;
+    cached_param_path_ = param_path;
+    cached_bin_path_ = bin_path;
 
     net_.opt = ncnn::Option();
     net_.opt.num_threads = num_threads_;
@@ -80,16 +82,23 @@ bool Yolo11Ncnn::load_model(const std::string& param_path, const std::string& bi
     }
 
     is_loaded_ = true;
-    LOGI("YOLO11 NCNN model loaded successfully (Vulkan: %s)", has_gpu_ ? "YES" : "NO");
+    LOGI("YOLO11 NCNN model loaded successfully (Vulkan: %s, threads: %d)", has_gpu_ ? "YES" : "NO", num_threads_);
     return true;
 }
 
-void Yolo11Ncnn::preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, LetterboxInfo& info) {
+bool Yolo11Ncnn::set_backend(bool use_gpu) {
+    if (cached_param_path_.empty() || cached_bin_path_.empty()) {
+        return false;
+    }
+    return load_model(cached_param_path_, cached_bin_path_, use_gpu);
+}
+
+void Yolo11Ncnn::preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, LetterboxInfo& info, int target_size) {
     int src_w = in.w;
     int src_h = in.h;
 
-    float scale = std::min(static_cast<float>(target_size_) / src_w,
-                           static_cast<float>(target_size_) / src_h);
+    float scale = std::min(static_cast<float>(target_size) / src_w,
+                           static_cast<float>(target_size) / src_h);
 
     int unpad_w = static_cast<int>(std::round(src_w * scale));
     int unpad_h = static_cast<int>(std::round(src_h * scale));
@@ -101,16 +110,16 @@ void Yolo11Ncnn::preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, Lette
         in_scaled = in;
     }
 
-    int pad_w = (target_size_ - unpad_w) / 2;
-    int pad_h = (target_size_ - unpad_h) / 2;
-    int pad_r = target_size_ - unpad_w - pad_w;
-    int pad_b = target_size_ - unpad_h - pad_h;
+    int pad_w = (target_size - unpad_w) / 2;
+    int pad_h = (target_size - unpad_h) / 2;
+    int pad_r = target_size - unpad_w - pad_w;
+    int pad_b = target_size - unpad_h - pad_h;
 
     ncnn::copy_make_border(in_scaled, out, pad_h, pad_b, pad_w, pad_r,
                            ncnn::BORDER_CONSTANT, 114.0f);
 
-    info.target_w = target_size_;
-    info.target_h = target_size_;
+    info.target_w = target_size;
+    info.target_h = target_size;
     info.scale = scale;
     info.pad_w = static_cast<float>(pad_w);
     info.pad_h = static_cast<float>(pad_h);
@@ -154,12 +163,15 @@ void Yolo11Ncnn::nms_sorted_bboxes(const std::vector<Detection>& bboxes, std::ve
     }
 }
 
-std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_thresh, float nms_thresh) {
+std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size, StageTimings* timings) {
+    auto prep_start = std::chrono::high_resolution_clock::now();
     std::lock_guard<std::mutex> lock(inference_mutex_);
     if (!is_loaded_) {
         LOGE("Cannot detect: model is not loaded.");
         return {};
     }
+
+    int active_target_size = (target_size > 0) ? target_size : target_size_;
 
     // Convert raw frame to ncnn::Mat RGB
     ncnn::Mat in_rgb;
@@ -175,13 +187,19 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
     // Apply letterbox preprocessing
     LetterboxInfo info;
     ncnn::Mat in_letterboxed;
-    preprocess_letterbox(in_rgb, in_letterboxed, info);
+    preprocess_letterbox(in_rgb, in_letterboxed, info, active_target_size);
 
     // Normalize: scale [0, 255] to [0.0, 1.0]
     const float norm_vals[3] = {1 / 255.0f, 1 / 255.0f, 1 / 255.0f};
     in_letterboxed.substract_mean_normalize(nullptr, norm_vals);
 
+    auto prep_end = std::chrono::high_resolution_clock::now();
+    if (timings) {
+        timings->preprocess_ms = std::chrono::duration<float, std::milli>(prep_end - prep_start).count();
+    }
+
     // Run inference
+    auto inf_start = std::chrono::high_resolution_clock::now();
     ncnn::Extractor ex = net_.create_extractor();
     ex.input("in0", in_letterboxed);
 
@@ -292,6 +310,11 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
         if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
 
         candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
+    }
+
+    auto inf_end = std::chrono::high_resolution_clock::now();
+    if (timings) {
+        timings->infer_ms = std::chrono::duration<float, std::milli>(inf_end - inf_start).count();
     }
 
     if (candidates.empty()) return {};
