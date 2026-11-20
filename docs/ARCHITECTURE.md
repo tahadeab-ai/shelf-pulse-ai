@@ -121,7 +121,7 @@ Mobile camera sensors produce non-contiguous row strides (e.g. padding bytes at 
 The application follows Google's recommended **Modern Android Architecture (MVI / MVVM)**:
 
 - **Presentation Layer (`com.shelfpulse.ai.ui`):**
-  - **Live Scan HUD (`LiveScanScreen.kt`):** Full-screen CameraX preview overlay with hardware-accelerated bounding box canvas, real-time ByteTrack ID tags, torch toggle, confidence/NMS sliders, and live telemetry chip (`FPS | ms | Vulkan/CPU`).
+  - **Live Scan HUD (`LiveScanScreen.kt`):** Full-screen CameraX preview overlay with hardware-accelerated bounding box canvas, real-time ByteTrack ID tags, torch toggle, segmented toggle controls (`[CPU NEON | GPU Vulkan]` and `[320px Fast | 640px HD]`), confidence/NMS sliders, and live telemetry chip (`FPS | ms | Vulkan/CPU`).
   - **Snap & Verify Canvas (`SnapVerifyScreen.kt`):** High-resolution still capture mode allowing stock auditors to tap detected boxes to toggle exclusion ($-1$) or tap empty shelf areas to add missing detections ($+1$).
   - **Inventory History (`HistoryScreen.kt`):** Audit trail of saved inventory sessions with item counts, timestamps, operator notes, and direct Excel-compatible CSV export.
 - **Data & Domain Layer (`com.shelfpulse.ai.data`):**
