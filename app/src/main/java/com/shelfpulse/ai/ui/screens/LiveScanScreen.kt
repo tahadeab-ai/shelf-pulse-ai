@@ -7,7 +7,9 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -185,6 +188,96 @@ fun LiveScanScreen(
                         contentDescription = stringResource(R.string.btn_torch),
                         tint = if (uiState.isTorchOn) Slate900 else Slate100
                     )
+                }
+            }
+
+            // Visible Segmented Controls: [CPU NEON | GPU Vulkan] & [320px Fast | 640px HD]
+            Surface(
+                color = Slate900.copy(alpha = 0.90f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Slate700)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Backend Segmented Control
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Slate800)
+                            .padding(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (!uiState.isVulkanBackend) Amber500 else Color.Transparent)
+                                .clickable { if (uiState.isVulkanBackend) viewModel.toggleBackend() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "CPU NEON",
+                                color = if (!uiState.isVulkanBackend) Slate900 else Slate400,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (uiState.isVulkanBackend) Cyan500 else Color.Transparent)
+                                .clickable { if (!uiState.isVulkanBackend) viewModel.toggleBackend() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "GPU Vulkan",
+                                color = if (uiState.isVulkanBackend) Slate900 else Slate400,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Resolution Segmented Control
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Slate800)
+                            .padding(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (uiState.targetResolution == 320) Emerald500 else Color.Transparent)
+                                .clickable { if (uiState.targetResolution != 320) viewModel.toggleResolution() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "320px Fast",
+                                color = if (uiState.targetResolution == 320) Slate900 else Slate400,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (uiState.targetResolution == 640) Emerald500 else Color.Transparent)
+                                .clickable { if (uiState.targetResolution != 640) viewModel.toggleResolution() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "640px HD",
+                                color = if (uiState.targetResolution == 640) Slate900 else Slate400,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 

@@ -29,6 +29,26 @@ static inline float intersection_over_union(const Detection& a, const Detection&
     return inter_area / union_area;
 }
 
+static inline float sigmoid(float x) {
+    return 1.0f / (1.0f + std::exp(-x));
+}
+
+static inline void softmax16(const float* src, float* dst) {
+    float max_val = src[0];
+    for (int i = 1; i < 16; i++) {
+        if (src[i] > max_val) max_val = src[i];
+    }
+    float sum = 0.0f;
+    for (int i = 0; i < 16; i++) {
+        dst[i] = std::exp(src[i] - max_val);
+        sum += dst[i];
+    }
+    float inv_sum = 1.0f / sum;
+    for (int i = 0; i < 16; i++) {
+        dst[i] *= inv_sum;
+    }
+}
+
 Yolo11Ncnn::Yolo11Ncnn()
     : is_loaded_(false), has_gpu_(false), target_size_(640) {
     num_threads_ = ncnn::get_big_cpu_count();
@@ -47,6 +67,9 @@ bool Yolo11Ncnn::load_model(const std::string& param_path, const std::string& bi
     has_gpu_ = false;
     cached_param_path_ = param_path;
     cached_bin_path_ = bin_path;
+
+    // Pin CPU worker threads strictly to big Kryo 485 performance cores
+    ncnn::set_cpu_powersave(2);
 
     net_.opt = ncnn::Option();
     net_.opt.num_threads = num_threads_;
@@ -171,11 +194,11 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
         return {};
     }
 
-    // model.ncnn.param uses static 640x640 anchors (8400 total)
-    int active_target_size = 640;
-    if (target_size > 0 && target_size != 640) {
-        LOGW("Model anchors are static 640x640 (8400 anchors). Clamping target_size %d -> 640", target_size);
-    }
+    // Pin CPU worker threads strictly to big Kryo 485 performance cores
+    ncnn::set_cpu_powersave(2);
+
+    // Dynamic resolution: 320 for Live Scan (Fast), 640 for Snap & Verify (HD)
+    int active_target_size = (target_size > 0) ? target_size : target_size_;
 
     // Convert raw frame to ncnn::Mat RGB with explicit row stride
     ncnn::Mat in_rgb;
@@ -215,106 +238,178 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
         return {};
     }
 
-    // Auto-detect dynamic output layout: [4 + C, N] vs [N, 4 + C]
-    int num_anchors = 0;
-    int num_classes = 0;
-    bool transpose_layout = false; // true if [4 + C, N]
+    std::vector<Detection> candidates;
 
-    if (out0.dims == 2) {
-        if (out0.w > out0.h) {
-            // Layout: [4 + C, N] where h = 4 + num_classes, w = num_anchors (e.g., 5 x 8400 or 84 x 8400)
-            num_anchors = out0.w;
-            num_classes = out0.h - 4;
-            transpose_layout = true;
-        } else {
-            // Layout: [N, 4 + C] where w = 4 + num_classes, h = num_anchors (e.g., 8400 x 5)
-            num_anchors = out0.h;
-            num_classes = out0.w - 4;
-            transpose_layout = false;
-        }
-    } else if (out0.dims == 3) {
-        // [1, 4 + C, N] or [1, N, 4 + C]
-        if (out0.h > out0.d) {
-            num_anchors = out0.h;
-            num_classes = out0.d - 4;
-            transpose_layout = false;
-        } else {
-            num_anchors = out0.d;
-            num_classes = out0.h - 4;
-            transpose_layout = true;
+    // Check if raw dynamic multi-stride tensor from PNNX export: [N, 64 + C]
+    // where w = 64 bbox reg + C class scores (65 for SKU-110K 1-class), h = N anchors (2100 or 8400)
+    if (out0.dims == 2 && out0.w >= 65) {
+        const int reg_max_1 = 16;
+        const int num_class = out0.w - reg_max_1 * 4;
+        const int strides[3] = {8, 16, 32};
+
+        candidates.reserve(out0.h / 4);
+
+        int pred_row_offset = 0;
+        for (int stride : strides) {
+            int num_grid_x = active_target_size / stride;
+            int num_grid_y = active_target_size / stride;
+            int num_grid = num_grid_x * num_grid_y;
+
+            if (pred_row_offset + num_grid > out0.h) {
+                LOGW("Grid overflow in stride %d: offset %d + grid %d > total %d",
+                     stride, pred_row_offset, num_grid, out0.h);
+                break;
+            }
+
+            for (int y = 0; y < num_grid_y; y++) {
+                for (int x = 0; x < num_grid_x; x++) {
+                    const float* row_ptr = out0.row(pred_row_offset + y * num_grid_x + x);
+
+                    // Find label with max score
+                    int best_label = 0;
+                    float max_score = -1e9f;
+                    for (int k = 0; k < num_class; k++) {
+                        float s = row_ptr[reg_max_1 * 4 + k];
+                        if (s > max_score) {
+                            max_score = s;
+                            best_label = k;
+                        }
+                    }
+
+                    float score = sigmoid(max_score);
+                    if (score < conf_thresh) continue;
+
+                    // Decode DFL bboxes: 4 sides * 16 bins
+                    float pred_ltrb[4];
+                    float sm_buf[16];
+                    for (int k = 0; k < 4; k++) {
+                        softmax16(row_ptr + k * 16, sm_buf);
+                        float dis = 0.0f;
+                        for (int l = 0; l < 16; l++) {
+                            dis += l * sm_buf[l];
+                        }
+                        pred_ltrb[k] = dis * stride;
+                    }
+
+                    float pb_cx = (x + 0.5f) * stride;
+                    float pb_cy = (y + 0.5f) * stride;
+
+                    float x0 = pb_cx - pred_ltrb[0];
+                    float y0 = pb_cy - pred_ltrb[1];
+                    float x1 = pb_cx + pred_ltrb[2];
+                    float y1 = pb_cy + pred_ltrb[3];
+
+                    // Reverse letterbox transformation to original frame coordinates
+                    float orig_x1 = (x0 - info.pad_w) / info.scale;
+                    float orig_y1 = (y0 - info.pad_h) / info.scale;
+                    float orig_x2 = (x1 - info.pad_w) / info.scale;
+                    float orig_y2 = (y1 - info.pad_h) / info.scale;
+
+                    orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(frame.width));
+                    orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(frame.height));
+                    orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(frame.width));
+                    orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(frame.height));
+
+                    if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
+
+                    candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, score, best_label, -1);
+                }
+            }
+            pred_row_offset += num_grid;
         }
     } else {
-        LOGE("Unexpected out0 dimension count: %d", out0.dims);
-        return {};
-    }
+        // Fallback for static/already-decoded models ([4 + C, N] or [N, 4 + C])
+        int num_anchors = 0;
+        int num_classes = 0;
+        bool transpose_layout = false; // true if [4 + C, N]
 
-    if (num_classes <= 0 || num_anchors <= 0) {
-        LOGE("Invalid tensor shape parsed: num_classes=%d, num_anchors=%d", num_classes, num_anchors);
-        return {};
-    }
-
-    std::vector<Detection> candidates;
-    candidates.reserve(num_anchors / 4);
-
-    // Parse predictions
-    // NOTE: Ultralytics PNNX NCNN exports output class scores ALREADY sigmoid-activated!
-    for (int i = 0; i < num_anchors; i++) {
-        float cx, cy, w, h;
-        float max_score = 0.0f;
-        int best_class = 0;
-
-        if (transpose_layout) {
-            cx = out0.row(0)[i];
-            cy = out0.row(1)[i];
-            w  = out0.row(2)[i];
-            h  = out0.row(3)[i];
-
-            for (int c = 0; c < num_classes; c++) {
-                float score = out0.row(4 + c)[i];
-                if (score > max_score) {
-                    max_score = score;
-                    best_class = c;
-                }
+        if (out0.dims == 2) {
+            if (out0.w > out0.h) {
+                num_anchors = out0.w;
+                num_classes = out0.h - 4;
+                transpose_layout = true;
+            } else {
+                num_anchors = out0.h;
+                num_classes = out0.w - 4;
+                transpose_layout = false;
+            }
+        } else if (out0.dims == 3) {
+            if (out0.h > out0.d) {
+                num_anchors = out0.h;
+                num_classes = out0.d - 4;
+                transpose_layout = false;
+            } else {
+                num_anchors = out0.d;
+                num_classes = out0.h - 4;
+                transpose_layout = true;
             }
         } else {
-            const float* row_ptr = out0.row(i);
-            cx = row_ptr[0];
-            cy = row_ptr[1];
-            w  = row_ptr[2];
-            h  = row_ptr[3];
-
-            for (int c = 0; c < num_classes; c++) {
-                float score = row_ptr[4 + c];
-                if (score > max_score) {
-                    max_score = score;
-                    best_class = c;
-                }
-            }
+            LOGE("Unexpected out0 dimension count: %d", out0.dims);
+            return {};
         }
 
-        if (max_score < conf_thresh) continue;
+        if (num_classes <= 0 || num_anchors <= 0) {
+            LOGE("Invalid tensor shape parsed: num_classes=%d, num_anchors=%d", num_classes, num_anchors);
+            return {};
+        }
 
-        // Convert [cx, cy, w, h] to corner coordinates [x1, y1, x2, y2]
-        float x1 = cx - w * 0.5f;
-        float y1 = cy - h * 0.5f;
-        float x2 = cx + w * 0.5f;
-        float y2 = cy + h * 0.5f;
+        candidates.reserve(num_anchors / 4);
 
-        // Reverse letterbox transformation to original frame coordinates
-        float orig_x1 = (x1 - info.pad_w) / info.scale;
-        float orig_y1 = (y1 - info.pad_h) / info.scale;
-        float orig_x2 = (x2 - info.pad_w) / info.scale;
-        float orig_y2 = (y2 - info.pad_h) / info.scale;
+        for (int i = 0; i < num_anchors; i++) {
+            float cx, cy, w, h;
+            float max_score = 0.0f;
+            int best_class = 0;
 
-        // Clamp to original frame boundaries
-        orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(frame.width));
-        orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(frame.height));
-        orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(frame.width));
-        orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(frame.height));
+            if (transpose_layout) {
+                cx = out0.row(0)[i];
+                cy = out0.row(1)[i];
+                w  = out0.row(2)[i];
+                h  = out0.row(3)[i];
 
-        if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
+                for (int c = 0; c < num_classes; c++) {
+                    float score = out0.row(4 + c)[i];
+                    if (score > max_score) {
+                        max_score = score;
+                        best_class = c;
+                    }
+                }
+            } else {
+                const float* row_ptr = out0.row(i);
+                cx = row_ptr[0];
+                cy = row_ptr[1];
+                w  = row_ptr[2];
+                h  = row_ptr[3];
 
-        candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
+                for (int c = 0; c < num_classes; c++) {
+                    float score = row_ptr[4 + c];
+                    if (score > max_score) {
+                        max_score = score;
+                        best_class = c;
+                    }
+                }
+            }
+
+            if (max_score < conf_thresh) continue;
+
+            float x1 = cx - w * 0.5f;
+            float y1 = cy - h * 0.5f;
+            float x2 = cx + w * 0.5f;
+            float y2 = cy + h * 0.5f;
+
+            float orig_x1 = (x1 - info.pad_w) / info.scale;
+            float orig_y1 = (y1 - info.pad_h) / info.scale;
+            float orig_x2 = (x2 - info.pad_w) / info.scale;
+            float orig_y2 = (y2 - info.pad_h) / info.scale;
+
+            orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(frame.width));
+            orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(frame.height));
+            orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(frame.width));
+            orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(frame.height));
+
+            if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
+
+            candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
+        }
     }
 
     auto inf_end = std::chrono::high_resolution_clock::now();

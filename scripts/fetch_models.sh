@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MODEL_DIR="$PROJECT_ROOT/app/src/main/assets/models"
 REPO="tahadeab-ai/shelf-pulse-ai"
-TAG="${1:-models-v1.0.0}"
+TAG="${1:-models-v1.1.0}"
 
 mkdir -p "$MODEL_DIR"
 

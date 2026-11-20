@@ -28,7 +28,7 @@ data class LiveScanUiState(
     val confThresh: Float = 0.40f,
     val nmsThresh: Float = 0.45f,
     val isVulkanBackend: Boolean = false,
-    val targetResolution: Int = 640
+    val targetResolution: Int = 320
 )
 
 class LiveScanViewModel(
