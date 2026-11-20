@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.shelfpulse.ai"
     compileSdk = 35
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "com.shelfpulse.ai"

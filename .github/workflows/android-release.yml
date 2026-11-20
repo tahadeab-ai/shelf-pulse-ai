@@ -33,7 +33,7 @@ jobs:
       - name: Setup Android NDK & CMake
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27
+          ndk-version: r26c
           add-to-path: true
 
       - name: Cache Native Third-Party SDKs
