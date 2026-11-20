@@ -30,12 +30,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android NDK & CMake
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26c
-          add-to-path: true
-
       - name: Cache Native Third-Party SDKs
         id: cache-native-deps
         uses: actions/cache@v4

@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.shelfpulse.ai"
     compileSdk = 35
-    ndkVersion = "26.3.11579264"
+    ndkVersion = "30.0.16248370"
 
     defaultConfig {
         applicationId = "com.shelfpulse.ai"
@@ -27,8 +27,9 @@ android {
             cmake {
                 cppFlags("-std=c++17 -O3")
                 arguments(
-                    "-DANDROID_STL=c++_shared",
-                    "-DANDROID_ARM_NEON=ON"
+                    "-DANDROID_STL=c++_static",
+                    "-DANDROID_ARM_NEON=ON",
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
                 )
             }
         }
