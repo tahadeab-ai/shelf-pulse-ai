@@ -28,6 +28,19 @@ object ModelAssetValidator {
         val destParam = File(modelsDir, "model.ncnn.param")
         val destBin = File(modelsDir, "model.ncnn.bin")
 
+        val prefs = context.getSharedPreferences("model_asset_prefs", Context.MODE_PRIVATE)
+        val lastExtractedVersion = prefs.getInt("extracted_version_code", -1)
+        val currentVersion = try {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+        } catch (e: Exception) {
+            0
+        }
+        if (currentVersion != lastExtractedVersion) {
+            destParam.delete()
+            destBin.delete()
+        }
+
         // Check if assets exist
         val hasAssetParam = assetExists(context, ASSET_PARAM)
         val hasAssetBin = assetExists(context, ASSET_BIN)
@@ -53,6 +66,7 @@ object ModelAssetValidator {
             // Copy param if newer or missing
             copyAssetIfNeeded(context, ASSET_PARAM, destParam)
             copyAssetIfNeeded(context, ASSET_BIN, destBin)
+            prefs.edit().putInt("extracted_version_code", currentVersion).apply()
 
             return ModelStatus(
                 isReady = true,
