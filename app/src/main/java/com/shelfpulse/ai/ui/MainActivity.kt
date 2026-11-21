@@ -10,9 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,7 +38,7 @@ import com.shelfpulse.ai.ui.viewmodel.VideoAuditViewModel
 enum class NavigationTab(val titleRes: Int, val icon: ImageVector) {
     SNAP_VERIFY(R.string.tab_snap_verify, Icons.Default.CameraAlt),
     LIVE_SCAN(R.string.tab_live_scan, Icons.Default.Videocam),
-    VIDEO_AUDIT(R.string.tab_video_audit, Icons.Default.VideoLibrary),
+    VIDEO_AUDIT(R.string.tab_video_audit, Icons.Default.Movie),
     HISTORY(R.string.tab_history, Icons.Default.History)
 }
 

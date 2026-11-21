@@ -74,7 +74,7 @@ fun VideoAuditScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VideoLibrary,
+                            imageVector = Icons.Default.Movie,
                             contentDescription = null,
                             tint = Emerald400,
                             modifier = Modifier.size(64.dp)
@@ -275,7 +275,7 @@ fun VideoAuditScreen(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.VideoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(text = stringResource(R.string.btn_import_video), fontSize = 13.sp)
                         }
