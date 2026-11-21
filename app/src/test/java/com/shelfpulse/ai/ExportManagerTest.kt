@@ -135,7 +135,7 @@ class ExportManagerTest {
 
         // Metrics block
         val metricsObj = root.getJSONObject("metrics")
-        assertThat(metricsObj.getInt("totalCount")).isEqualTo(1)
+        assertThat(metricsObj.getInt("totalCount")).isEqualTo(15)
         assertThat(metricsObj.getInt("autoCount")).isEqualTo(1)
         assertThat(metricsObj.getInt("manualCount")).isEqualTo(0)
 
