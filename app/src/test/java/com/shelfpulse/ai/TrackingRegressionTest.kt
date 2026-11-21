@@ -107,9 +107,9 @@ class TrackingRegressionTest {
 
         // Frame 1 detections (tracks 1, 2, 3)
         val frame1Dets = listOf(
-            DetectionResult(0.1f, 0.1f, 0.2f, 0.2f, 0.9f, 0, trackId = 1),
-            DetectionResult(0.3f, 0.3f, 0.4f, 0.4f, 0.85f, 0, trackId = 2),
-            DetectionResult(0.5f, 0.5f, 0.6f, 0.6f, 0.80f, 0, trackId = 3)
+            DetectionResult(x1 = 0.1f, y1 = 0.1f, x2 = 0.2f, y2 = 0.2f, score = 0.9f, classId = 0, trackId = 1),
+            DetectionResult(x1 = 0.3f, y1 = 0.3f, x2 = 0.4f, y2 = 0.4f, score = 0.85f, classId = 0, trackId = 2),
+            DetectionResult(x1 = 0.5f, y1 = 0.5f, x2 = 0.6f, y2 = 0.6f, score = 0.80f, classId = 0, trackId = 3)
         )
         for (d in frame1Dets) {
             if (d.trackId > 0) seenTrackIds.add(d.trackId)
@@ -118,9 +118,9 @@ class TrackingRegressionTest {
 
         // Frame 2 detections (tracks 2, 3, and newly tracked 4)
         val frame2Dets = listOf(
-            DetectionResult(0.31f, 0.31f, 0.41f, 0.41f, 0.88f, 0, trackId = 2),
-            DetectionResult(0.51f, 0.51f, 0.61f, 0.61f, 0.82f, 0, trackId = 3),
-            DetectionResult(0.7f, 0.7f, 0.8f, 0.8f, 0.75f, 0, trackId = 4)
+            DetectionResult(x1 = 0.31f, y1 = 0.31f, x2 = 0.41f, y2 = 0.41f, score = 0.88f, classId = 0, trackId = 2),
+            DetectionResult(x1 = 0.51f, y1 = 0.51f, x2 = 0.61f, y2 = 0.61f, score = 0.82f, classId = 0, trackId = 3),
+            DetectionResult(x1 = 0.7f, y1 = 0.7f, x2 = 0.8f, y2 = 0.8f, score = 0.75f, classId = 0, trackId = 4)
         )
         for (d in frame2Dets) {
             if (d.trackId > 0) seenTrackIds.add(d.trackId)
