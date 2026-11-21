@@ -106,20 +106,28 @@ class VideoAuditViewModel(
                 val nms = _uiState.value.nmsThresh
 
                 var frameIdx = 0
-                var lastBitmap: Bitmap? = null
 
                 while (isActive && frameIdx < totalFrames) {
                     val timeUs = frameIdx * FRAME_INTERVAL_MS * 1000L
 
                     // Guardrail 2: Use getScaledFrameAtTime(timeUs, OPTION_CLOSEST, 640, 640)
-                    val frameBitmap = retriever.getScaledFrameAtTime(
+                    val rawFrame = retriever.getScaledFrameAtTime(
                         timeUs,
                         MediaMetadataRetriever.OPTION_CLOSEST,
                         640,
                         640
                     )
 
-                    if (frameBitmap != null) {
+                    if (rawFrame != null) {
+                        // Ensure software ARGB_8888 bitmap for NDK native processing
+                        val frameBitmap = if (rawFrame.config != Bitmap.Config.ARGB_8888) {
+                            val converted = rawFrame.copy(Bitmap.Config.ARGB_8888, false)
+                            rawFrame.recycle()
+                            converted ?: rawFrame
+                        } else {
+                            rawFrame
+                        }
+
                         // Pass to YOLO11 + ByteTrack-cpp pipeline
                         val (dets, telem) = nativeEngine.detectBitmap(
                             bitmap = frameBitmap,
@@ -148,10 +156,6 @@ class VideoAuditViewModel(
                             }
                         }
 
-                        // Guardrail 2: Recycle previous preview bitmap to prevent memory leak
-                        val oldBitmap = lastBitmap
-                        lastBitmap = frameBitmap
-
                         _uiState.update {
                             it.copy(
                                 currentFrame = frameIdx + 1,
@@ -161,8 +165,6 @@ class VideoAuditViewModel(
                                 telemetry = telem
                             )
                         }
-
-                        oldBitmap?.recycle()
                     }
 
                     frameIdx++

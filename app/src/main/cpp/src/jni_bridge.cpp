@@ -252,6 +252,11 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmap(
         return pack_detections_to_jfloat_array(env, {}, timings, false);
     }
 
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        LOGE("nativeDetectBitmap: Unsupported bitmap format %d (expected RGBA_8888 = 1)", info.format);
+        return pack_detections_to_jfloat_array(env, {}, timings, false);
+    }
+
     void* pixels = nullptr;
     if (AndroidBitmap_lockPixels(env, bitmap, &pixels) < 0) {
         LOGE("Failed to lock bitmap pixels");
@@ -306,6 +311,11 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmapTil
     AndroidBitmapInfo info;
     if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
         LOGE("Failed to get AndroidBitmapInfo in nativeDetectBitmapTiled");
+        return pack_detections_to_jfloat_array(env, {}, timings, false);
+    }
+
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        LOGE("nativeDetectBitmapTiled: Unsupported bitmap format %d (expected RGBA_8888 = 1)", info.format);
         return pack_detections_to_jfloat_array(env, {}, timings, false);
     }
 
