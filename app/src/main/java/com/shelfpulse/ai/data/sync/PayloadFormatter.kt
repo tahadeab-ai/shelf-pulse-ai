@@ -61,7 +61,7 @@ object PayloadFormatter {
         root.put("location", session.shelfLocation.ifBlank { "Default Location" })
 
         val notesBuilder = StringBuilder()
-        notesBuilder.append("ShelfPulse v2.2 Count: ").append(session.totalCount)
+        notesBuilder.append("ShelfPulse v2.3 Count: ").append(session.totalCount)
         if (session.depthMultiplier > 1) {
             notesBuilder.append(" (").append(session.frontFacings).append(" Facings x ").append(session.depthMultiplier).append(" Depth)")
         }
@@ -96,7 +96,7 @@ object PayloadFormatter {
         itemsArray.put(itemObj)
 
         root.put("items", itemsArray)
-        root.put("remarks", "ShelfPulse v2.2 Scan (Session #${session.id} - ${session.shelfLocation})")
+        root.put("remarks", "ShelfPulse v2.3 Scan (Session #${session.id} - ${session.shelfLocation})")
 
         return root.toString(2)
     }

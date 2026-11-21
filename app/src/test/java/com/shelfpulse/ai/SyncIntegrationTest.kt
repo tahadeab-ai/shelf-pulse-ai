@@ -262,7 +262,9 @@ class SyncIntegrationTest {
         assertThat(item0.getString("item_code")).isEqualTo("7622210449283")
         assertThat(item0.getInt("qty")).isEqualTo(180)
         assertThat(item0.getDouble("valuation_rate")).isEqualTo(2.25)
-        assertThat(root.getString("remarks")).contains("180 units [60x3]")
+        assertThat(item0.getString("warehouse")).isEqualTo("Aisle 9 - Shelf C")
+        assertThat(root.getString("remarks")).contains("ShelfPulse")
+        assertThat(root.getString("remarks")).contains("Session #501")
     }
 
     @Test
