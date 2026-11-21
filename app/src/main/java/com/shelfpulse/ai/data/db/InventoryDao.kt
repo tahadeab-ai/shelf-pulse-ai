@@ -38,6 +38,9 @@ interface InventoryDao {
     @Query("UPDATE inventory_sessions SET syncStatus = :status, lastSyncedAt = :syncedAt WHERE id = :sessionId")
     suspend fun updateSyncStatus(sessionId: Long, status: String, syncedAt: Long?)
 
+    @Query("UPDATE inventory_sessions SET photoPath = :photoPath WHERE id = :sessionId")
+    suspend fun updatePhotoPath(sessionId: Long, photoPath: String)
+
     @Query("SELECT * FROM inventory_sessions WHERE syncStatus IN ('QUEUED', 'FAILED') ORDER BY timestamp ASC")
     suspend fun getPendingSyncSessions(): List<InventorySessionEntity>
 }

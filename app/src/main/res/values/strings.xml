@@ -38,6 +38,12 @@
     <string name="btn_start_audit">Start Audit</string>
     <string name="btn_cancel_audit">Cancel Audit</string>
     <string name="txt_unique_products">Unique Products Tracked</string>
+    <string name="txt_live_frame">Live Frame: %1$d</string>
+    <string name="res_320_fast">320px Fast</string>
+    <string name="res_640_hd">640px HD</string>
+    <string name="dialog_view_photo">Annotated Shelf Photo</string>
+    <string name="view_photo">View Photo</string>
+    <string name="btn_close">Close</string>
     <string name="txt_video_ready">Video Ready for Audit</string>
     <string name="txt_video_duration">Duration: %1$.1fs (%2$d frames)</string>
     <string name="txt_audit_complete">Video Audit Completed</string>

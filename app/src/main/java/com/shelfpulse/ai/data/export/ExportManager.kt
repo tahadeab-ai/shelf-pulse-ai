@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.shelfpulse.ai.data.storage.SessionPhotoStore
 import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.domain.model.ShelfScanRecord
 import org.json.JSONArray
@@ -150,16 +151,12 @@ object ExportManager {
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
-    fun exportAnnotatedImage(
-        context: Context,
-        bitmap: Bitmap,
+    fun createAnnotatedBitmap(
+        baseBitmap: Bitmap,
         session: InventorySession,
         records: List<ShelfScanRecord>
-    ): Uri {
-        val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val file = File(exportsDir, "shelfpulse_session_${session.id}_proof.jpg")
-
-        val workingBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+    ): Bitmap {
+        val workingBitmap = baseBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(workingBitmap)
         val w = workingBitmap.width.toFloat()
         val h = workingBitmap.height.toFloat()
@@ -213,6 +210,24 @@ object ExportManager {
         val watermarkText = "ShelfPulse AI • ${session.shelfLocation} • Count: ${session.totalCount}$skuStr • $dateStr"
         canvas.drawText(watermarkText, 20f, h - (barHeight * 0.32f), textPaint)
 
+        return workingBitmap
+    }
+
+    fun exportAnnotatedImage(
+        context: Context,
+        bitmap: Bitmap?,
+        session: InventorySession,
+        records: List<ShelfScanRecord>
+    ): Uri {
+        val baseBmp = bitmap ?: SessionPhotoStore.loadPhoto(session.photoPath)
+        if (baseBmp == null) {
+            return exportCsv(context, session, records)
+        }
+        val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val file = File(exportsDir, "shelfpulse_session_${session.id}_proof.jpg")
+
+        val workingBitmap = createAnnotatedBitmap(baseBmp, session, records)
+
         FileOutputStream(file).use { out ->
             workingBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
         }
@@ -228,6 +243,11 @@ object ExportManager {
     ): Uri {
         val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
         val file = File(exportsDir, "shelfpulse_session_${session.id}_report.pdf")
+
+        val baseBmp = snapshotBitmap ?: SessionPhotoStore.loadPhoto(session.photoPath)
+        val imageToEmbed = if (baseBmp != null) {
+            createAnnotatedBitmap(baseBmp, session, records)
+        } else null
 
         val document = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 (595x842 pt)
@@ -345,16 +365,23 @@ object ExportManager {
 
         curY += 85f
 
-        // Embedded Snapshot if present
-        if (snapshotBitmap != null) {
-            val destW = 535f
-            val destH = 300f
-            val srcRect = Rect(0, 0, snapshotBitmap.width, snapshotBitmap.height)
-            val dstRect = RectF(30f, curY, 30f + destW, curY + destH)
+        // Embedded Shelf Photo if present
+        if (imageToEmbed != null) {
+            val maxW = 535f
+            val maxH = 280f
+            val aspect = imageToEmbed.width.toFloat() / imageToEmbed.height.toFloat()
+            val (destW, destH) = if (aspect >= maxW / maxH) {
+                Pair(maxW, maxW / aspect)
+            } else {
+                Pair(maxH * aspect, maxH)
+            }
+            val startX = 30f + (maxW - destW) / 2f
+            val srcRect = Rect(0, 0, imageToEmbed.width, imageToEmbed.height)
+            val dstRect = RectF(startX, curY, startX + destW, curY + destH)
 
             canvas.drawRoundRect(dstRect, 6f, 6f, strokePaint)
-            canvas.drawBitmap(snapshotBitmap, srcRect, dstRect, null)
-            curY += destH + 20f
+            canvas.drawBitmap(imageToEmbed, srcRect, dstRect, null)
+            curY += destH + 18f
         } else {
             curY += 15f
         }

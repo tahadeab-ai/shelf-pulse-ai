@@ -34,7 +34,8 @@ class InventoryRepository(
                 expectedStock = entity.expectedStock,
                 unitPrice = entity.unitPrice,
                 syncStatus = entity.syncStatus,
-                lastSyncedAt = entity.lastSyncedAt
+                lastSyncedAt = entity.lastSyncedAt,
+                photoPath = entity.photoPath
             )
         }
     }
@@ -56,7 +57,8 @@ class InventoryRepository(
             expectedStock = session.expectedStock,
             unitPrice = session.unitPrice,
             syncStatus = session.syncStatus,
-            lastSyncedAt = session.lastSyncedAt
+            lastSyncedAt = session.lastSyncedAt,
+            photoPath = session.photoPath
         )
 
         val recordEntities = records.map { r ->
@@ -98,12 +100,40 @@ class InventoryRepository(
         }
     }
 
+    suspend fun getSessionById(sessionId: Long): InventorySession? {
+        return dao.getSessionById(sessionId)?.let { entity ->
+            InventorySession(
+                id = entity.id,
+                timestamp = entity.timestamp,
+                shelfLocation = entity.shelfLocation,
+                totalCount = entity.totalCount,
+                operatorNotes = entity.operatorNotes,
+                mode = entity.mode,
+                rawBoxCount = entity.rawBoxCount,
+                mergedBoxCount = entity.mergedBoxCount,
+                tileCount = entity.tileCount,
+                durationMs = entity.durationMs,
+                barcode = entity.barcode,
+                productName = entity.productName,
+                expectedStock = entity.expectedStock,
+                unitPrice = entity.unitPrice,
+                syncStatus = entity.syncStatus,
+                lastSyncedAt = entity.lastSyncedAt,
+                photoPath = entity.photoPath
+            )
+        }
+    }
+
     suspend fun deleteSession(sessionId: Long) {
         dao.deleteSession(sessionId)
     }
 
     suspend fun updateSyncStatus(sessionId: Long, status: String, syncedAt: Long? = null) {
         dao.updateSyncStatus(sessionId, status, syncedAt)
+    }
+
+    suspend fun updatePhotoPath(sessionId: Long, photoPath: String) {
+        dao.updatePhotoPath(sessionId, photoPath)
     }
 
     suspend fun getPendingSyncSessions(): List<InventorySession> {
@@ -124,7 +154,8 @@ class InventoryRepository(
                 expectedStock = entity.expectedStock,
                 unitPrice = entity.unitPrice,
                 syncStatus = entity.syncStatus,
-                lastSyncedAt = entity.lastSyncedAt
+                lastSyncedAt = entity.lastSyncedAt,
+                photoPath = entity.photoPath
             )
         }
     }

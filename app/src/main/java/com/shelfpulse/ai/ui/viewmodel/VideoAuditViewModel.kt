@@ -36,7 +36,8 @@ data class VideoAuditUiState(
     val isSaved: Boolean = false,
     val lastSavedSessionId: Long? = null,
     val confThresh: Float = 0.30f,
-    val nmsThresh: Float = 0.45f
+    val nmsThresh: Float = 0.45f,
+    val targetResolution: Int = 640
 )
 
 class VideoAuditViewModel(
@@ -104,36 +105,64 @@ class VideoAuditViewModel(
                 val totalFrames = _uiState.value.totalFrames
                 val conf = _uiState.value.confThresh
                 val nms = _uiState.value.nmsThresh
+                val targetRes = _uiState.value.targetResolution
 
                 var frameIdx = 0
 
                 while (isActive && frameIdx < totalFrames) {
                     val timeUs = frameIdx * FRAME_INTERVAL_MS * 1000L
 
-                    // Guardrail 2: Use getScaledFrameAtTime(timeUs, OPTION_CLOSEST, 640, 640)
-                    val rawFrame = retriever.getScaledFrameAtTime(
-                        timeUs,
-                        MediaMetadataRetriever.OPTION_CLOSEST,
-                        640,
-                        640
-                    )
+                    val rawFrame = try {
+                        retriever.getScaledFrameAtTime(
+                            timeUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST,
+                            targetRes,
+                            targetRes
+                        ) ?: retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                    } catch (e: Throwable) {
+                        retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                    }
 
                     if (rawFrame != null) {
                         // Ensure software ARGB_8888 bitmap for NDK native processing
-                        val frameBitmap = if (rawFrame.config != Bitmap.Config.ARGB_8888) {
+                        val swBmp = if (rawFrame.config == Bitmap.Config.HARDWARE || rawFrame.config != Bitmap.Config.ARGB_8888) {
                             val converted = rawFrame.copy(Bitmap.Config.ARGB_8888, false)
-                            rawFrame.recycle()
-                            converted ?: rawFrame
+                            if (converted != null) {
+                                rawFrame.recycle()
+                                converted
+                            } else {
+                                val sw = Bitmap.createBitmap(rawFrame.width, rawFrame.height, Bitmap.Config.ARGB_8888)
+                                val c = android.graphics.Canvas(sw)
+                                c.drawBitmap(rawFrame, 0f, 0f, null)
+                                rawFrame.recycle()
+                                sw
+                            }
                         } else {
                             rawFrame
                         }
 
+                        val finalFrame = if (swBmp.width > targetRes || swBmp.height > targetRes) {
+                            val maxSide = maxOf(swBmp.width, swBmp.height)
+                            val scale = targetRes.toFloat() / maxSide.toFloat()
+                            val scaled = Bitmap.createScaledBitmap(
+                                swBmp,
+                                (swBmp.width * scale).toInt().coerceAtLeast(1),
+                                (swBmp.height * scale).toInt().coerceAtLeast(1),
+                                true
+                            )
+                            if (scaled != swBmp) swBmp.recycle()
+                            scaled
+                        } else {
+                            swBmp
+                        }
+
                         // Pass to YOLO11 + ByteTrack-cpp pipeline
                         val (dets, telem) = nativeEngine.detectBitmap(
-                            bitmap = frameBitmap,
+                            bitmap = finalFrame,
                             confThresh = conf,
                             nmsThresh = nms,
-                            enableTracking = true
+                            enableTracking = true,
+                            targetSize = targetRes
                         )
 
                         // Update unique active tracks
@@ -159,7 +188,7 @@ class VideoAuditViewModel(
                         _uiState.update {
                             it.copy(
                                 currentFrame = frameIdx + 1,
-                                currentPreviewBitmap = frameBitmap,
+                                currentPreviewBitmap = finalFrame,
                                 currentDetections = dets,
                                 uniqueTrackedCount = uniqueTrackIds.size,
                                 telemetry = telem
@@ -211,6 +240,11 @@ class VideoAuditViewModel(
             _uiState.update { it.copy(isSaved = true, lastSavedSessionId = sessionId) }
             onComplete()
         }
+    }
+
+    fun toggleResolution() {
+        val nextRes = if (_uiState.value.targetResolution == 640) 320 else 640
+        _uiState.update { it.copy(targetResolution = nextRes) }
     }
 
     fun reset() {

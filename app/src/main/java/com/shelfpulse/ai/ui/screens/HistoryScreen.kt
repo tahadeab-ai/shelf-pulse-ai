@@ -1,5 +1,7 @@
 package com.shelfpulse.ai.ui.screens
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,13 +16,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelfpulse.ai.R
+import com.shelfpulse.ai.data.storage.SessionPhotoStore
 import com.shelfpulse.ai.data.sync.ConnectorPreset
 import com.shelfpulse.ai.data.sync.SyncConfig
 import com.shelfpulse.ai.data.sync.SyncPreferences
@@ -28,6 +34,8 @@ import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.ui.theme.*
 import com.shelfpulse.ai.ui.viewmodel.ExportFormat
 import com.shelfpulse.ai.ui.viewmodel.HistoryViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +49,7 @@ fun HistoryScreen(
     val context = LocalContext.current
     val sessions by viewModel.sessions.collectAsState()
     var selectedSessionForExport by remember { mutableStateOf<InventorySession?>(null) }
+    var selectedPhotoSessionForViewer by remember { mutableStateOf<InventorySession?>(null) }
     var showIntegrationsSheet by remember { mutableStateOf(false) }
 
     Column(
@@ -109,12 +118,62 @@ fun HistoryScreen(
                     SessionCard(
                         session = session,
                         onExportClick = { selectedSessionForExport = session },
+                        onPhotoClick = { selectedPhotoSessionForViewer = session },
                         onDelete = { viewModel.deleteSession(session.id) },
                         onSyncClick = { viewModel.triggerSessionSync(context, session) }
                     )
                 }
             }
         }
+    }
+
+    // Full-Screen / Dialog Shelf Photo Viewer
+    selectedPhotoSessionForViewer?.let { session ->
+        var fullAnnotatedBmp by remember(session.id) { mutableStateOf<Bitmap?>(null) }
+        LaunchedEffect(session.id) {
+            fullAnnotatedBmp = viewModel.getAnnotatedPhoto(session)
+        }
+
+        AlertDialog(
+            onDismissRequest = { selectedPhotoSessionForViewer = null },
+            confirmButton = {
+                TextButton(onClick = { selectedPhotoSessionForViewer = null }) {
+                    Text(text = stringResource(R.string.btn_close), color = Emerald400, fontWeight = FontWeight.Bold)
+                }
+            },
+            title = {
+                Text(
+                    text = "${session.shelfLocation} (${session.totalCount} items)",
+                    color = Slate100,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 450.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val bmp = fullAnnotatedBmp
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Annotated Shelf Photo",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        CircularProgressIndicator(color = Emerald500)
+                    }
+                }
+            },
+            containerColor = Slate900,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     // Multi-Format Export Bottom Sheet
@@ -268,6 +327,7 @@ private fun ExportFormatRow(
 private fun SessionCard(
     session: InventorySession,
     onExportClick: () -> Unit,
+    onPhotoClick: (InventorySession) -> Unit,
     onDelete: () -> Unit,
     onSyncClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -435,6 +495,61 @@ private fun SessionCard(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Saved Shelf Photo Thumbnail
+            if (!session.photoPath.isNullOrBlank()) {
+                var thumbnailBitmap by remember(session.photoPath) { mutableStateOf<Bitmap?>(null) }
+                LaunchedEffect(session.photoPath) {
+                    withContext(Dispatchers.IO) {
+                        thumbnailBitmap = SessionPhotoStore.loadThumbnail(session.photoPath, 320, 180)
+                    }
+                }
+
+                thumbnailBitmap?.let { bmp ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate700),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(130.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onPhotoClick(session) }
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            Image(
+                                bitmap = bmp.asImageBitmap(),
+                                contentDescription = "Shelf Photo Thumbnail",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Surface(
+                                color = Slate900.copy(alpha = 0.75f),
+                                shape = RoundedCornerShape(topStart = 8.dp),
+                                modifier = Modifier.align(Alignment.BottomEnd)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Emerald400,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.view_photo),
+                                        color = Slate200,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }

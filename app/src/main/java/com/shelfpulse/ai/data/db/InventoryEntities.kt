@@ -23,7 +23,8 @@ data class InventorySessionEntity(
     val expectedStock: Int? = null,
     val unitPrice: Double? = null,
     val syncStatus: String = "LOCAL_ONLY",
-    val lastSyncedAt: Long? = null
+    val lastSyncedAt: Long? = null,
+    val photoPath: String? = null
 )
 
 @Entity(tableName = "product_catalog")

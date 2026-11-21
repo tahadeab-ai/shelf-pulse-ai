@@ -33,7 +33,7 @@ KalmanFilter::initiate(const DETECTBOX& measurement) {
     mean_pos.head<4>() = measurement;
 
     Eigen::Matrix<float, 1, 8, Eigen::RowMajor> std;
-    float h = measurement(3);
+    float h = std::max(measurement(3), 1e-4f);
     std << 2.0f * _std_weight_position * h,
            2.0f * _std_weight_position * h,
            1e-2f,
@@ -50,7 +50,7 @@ KalmanFilter::initiate(const DETECTBOX& measurement) {
 
 void KalmanFilter::predict(Eigen::Matrix<float, 1, 8, Eigen::RowMajor>& mean,
                           Eigen::Matrix<float, 8, 8, Eigen::RowMajor>& covariance) {
-    float h = mean(3);
+    float h = std::max(mean(3), 1e-4f);
     Eigen::Matrix<float, 1, 8, Eigen::RowMajor> std;
     std << _std_weight_position * h,
            _std_weight_position * h,
@@ -69,7 +69,7 @@ void KalmanFilter::predict(Eigen::Matrix<float, 1, 8, Eigen::RowMajor>& mean,
 std::pair<Eigen::Matrix<float, 1, 4, Eigen::RowMajor>, Eigen::Matrix<float, 4, 4, Eigen::RowMajor>>
 KalmanFilter::project(const Eigen::Matrix<float, 1, 8, Eigen::RowMajor>& mean,
                       const Eigen::Matrix<float, 8, 8, Eigen::RowMajor>& covariance) {
-    float h = mean(3);
+    float h = std::max(mean(3), 1e-4f);
     Eigen::Matrix<float, 1, 4, Eigen::RowMajor> std;
     std << _std_weight_position * h,
            _std_weight_position * h,
@@ -122,23 +122,28 @@ STrack::STrack(const std::vector<float>& tlwh, float score, int class_id)
 
 std::vector<float> STrack::tlwh() const {
     if (mean.size() == 0) return _tlwh;
-    std::vector<float> ret(4);
-    ret[0] = mean(0) - mean(2) * mean(3) / 2.0f;
-    ret[1] = mean(1) - mean(3) / 2.0f;
-    ret[2] = mean(2) * mean(3);
-    ret[3] = mean(3);
-    return ret;
+    float w = std::max(1e-4f, mean(2) * mean(3));
+    float h = std::max(1e-4f, mean(3));
+    float x1 = mean(0) - w / 2.0f;
+    float y1 = mean(1) - h / 2.0f;
+    return {x1, y1, w, h};
 }
 
 std::vector<float> STrack::tlbr() const {
     auto box = tlwh();
-    return {box[0], box[1], box[0] + box[2], box[1] + box[3]};
+    float x1 = std::clamp(box[0], 0.0f, 1.0f);
+    float y1 = std::clamp(box[1], 0.0f, 1.0f);
+    float x2 = std::clamp(box[0] + box[2], x1, 1.0f);
+    float y2 = std::clamp(box[1] + box[3], y1, 1.0f);
+    return {x1, y1, x2, y2};
 }
 
 void STrack::activate(byte_kalman::KalmanFilter& kalman_filter, int frame_id) {
     this->track_id = STrack::next_id();
+    float w = std::max(_tlwh[2], 1e-4f);
+    float h = std::max(_tlwh[3], 1e-4f);
     byte_kalman::DETECTBOX box;
-    box << _tlwh[0] + _tlwh[2] / 2.0f, _tlwh[1] + _tlwh[3] / 2.0f, _tlwh[2] / _tlwh[3], _tlwh[3];
+    box << _tlwh[0] + w / 2.0f, _tlwh[1] + h / 2.0f, w / h, h;
 
     auto init = kalman_filter.initiate(box);
     this->mean = init.first;
@@ -151,9 +156,11 @@ void STrack::activate(byte_kalman::KalmanFilter& kalman_filter, int frame_id) {
 }
 
 void STrack::re_activate(STrack& new_track, int frame_id, bool new_id) {
-    byte_kalman::DETECTBOX box;
     auto new_box = new_track.tlwh();
-    box << new_box[0] + new_box[2] / 2.0f, new_box[1] + new_box[3] / 2.0f, new_box[2] / new_box[3], new_box[3];
+    float w = std::max(new_box[2], 1e-4f);
+    float h = std::max(new_box[3], 1e-4f);
+    byte_kalman::DETECTBOX box;
+    box << new_box[0] + w / 2.0f, new_box[1] + h / 2.0f, w / h, h;
 
     byte_kalman::KalmanFilter kf;
     auto res = kf.update(this->mean, this->covariance, box);
@@ -174,9 +181,11 @@ void STrack::update(STrack& new_track, int frame_id) {
     this->frame_id = frame_id;
     this->tracklet_len++;
 
-    byte_kalman::DETECTBOX box;
     auto new_box = new_track.tlwh();
-    box << new_box[0] + new_box[2] / 2.0f, new_box[1] + new_box[3] / 2.0f, new_box[2] / new_box[3], new_box[3];
+    float w = std::max(new_box[2], 1e-4f);
+    float h = std::max(new_box[3], 1e-4f);
+    byte_kalman::DETECTBOX box;
+    box << new_box[0] + w / 2.0f, new_box[1] + h / 2.0f, w / h, h;
 
     byte_kalman::KalmanFilter kf;
     auto res = kf.update(this->mean, this->covariance, box);
@@ -209,12 +218,12 @@ static float iou_distance(const std::vector<float>& box_a, const std::vector<flo
     float inter_h = std::max(0.0f, y2 - y1);
     float inter_area = inter_w * inter_h;
 
-    float area_a = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1]);
-    float area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1]);
+    float area_a = std::max(0.0f, box_a[2] - box_a[0]) * std::max(0.0f, box_a[3] - box_a[1]);
+    float area_b = std::max(0.0f, box_b[2] - box_b[0]) * std::max(0.0f, box_b[3] - box_b[1]);
     float union_area = area_a + area_b - inter_area;
 
     if (union_area <= 0.0f) return 1.0f;
-    return 1.0f - (inter_area / union_area);
+    return std::clamp(1.0f - (inter_area / union_area), 0.0f, 1.0f);
 }
 
 // Greedy IoU matching for robust association
@@ -279,7 +288,7 @@ static void linear_assignment(
 // --- BYTETracker Implementation ---
 
 BYTETracker::BYTETracker(int frame_rate, int track_buffer)
-    : track_thresh_(0.25f), high_thresh_(0.30f), match_thresh_(0.8f),
+    : track_thresh_(0.20f), high_thresh_(0.30f), match_thresh_(0.8f),
       frame_id_(0), max_time_lost_(track_buffer) {}
 
 void BYTETracker::reset() {
@@ -304,7 +313,7 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
     for (const auto& det : detections) {
         auto box = det.tlwh();
         float area = box[2] * box[3];
-        if (area <= 0.0001f) continue;
+        if (box[2] <= 0.0f || box[3] <= 0.0f || area <= 1e-7f) continue;
         if (det.score >= track_thresh_) {
             detections_high.push_back(det);
         } else if (det.score >= 0.1f) {
@@ -369,9 +378,10 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
     }
 
     // Deal with unmatched high-score detections (new tracks)
+    // Frame 1 detections and high-confidence detections (>= 0.30f) activate immediately
     for (int idx : u_detection1) {
         STrack track = detections_high[idx];
-        if (track.score >= high_thresh_) {
+        if (track.score >= high_thresh_ || frame_id_ == 1) {
             track.activate(kalman_filter_, frame_id_);
             activated_stracks.push_back(track);
         }
@@ -379,13 +389,30 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
 
     // Update state lists
     tracked_stracks_ = activated_stracks;
+
+    std::vector<STrack> new_lost;
     for (const auto& tr : lost_stracks) {
         if (frame_id_ - tr.frame_id < max_time_lost_) {
-            lost_stracks_.push_back(tr);
+            new_lost.push_back(tr);
         } else {
             removed_stracks.push_back(tr);
         }
     }
+    for (const auto& tr : lost_stracks_) {
+        if (frame_id_ - tr.frame_id < max_time_lost_) {
+            bool refound = false;
+            for (const auto& act : activated_stracks) {
+                if (act.track_id == tr.track_id) {
+                    refound = true;
+                    break;
+                }
+            }
+            if (!refound) {
+                new_lost.push_back(tr);
+            }
+        }
+    }
+    lost_stracks_ = std::move(new_lost);
 
     std::vector<STrack> output_stracks;
     for (const auto& tr : tracked_stracks_) {
@@ -411,11 +438,15 @@ std::vector<Detection> ByteTrackWrapper::update(const std::vector<Detection>& de
     std::vector<STrack> stracks_in;
     stracks_in.reserve(detections.size());
     for (const auto& det : detections) {
-        float w = det.x2 - det.x1;
-        float h = det.y2 - det.y1;
+        float x1 = std::clamp(det.x1, 0.0f, 1.0f);
+        float y1 = std::clamp(det.y1, 0.0f, 1.0f);
+        float x2 = std::clamp(det.x2, x1, 1.0f);
+        float y2 = std::clamp(det.y2, y1, 1.0f);
+        float w = x2 - x1;
+        float h = y2 - y1;
         float area = w * h;
-        if (area <= 0.0001f) continue;
-        std::vector<float> tlwh = {det.x1, det.y1, w, h};
+        if (w <= 0.0f || h <= 0.0f || area <= 1e-7f) continue;
+        std::vector<float> tlwh = {x1, y1, w, h};
         stracks_in.emplace_back(tlwh, det.score, det.class_id);
     }
 
@@ -424,6 +455,11 @@ std::vector<Detection> ByteTrackWrapper::update(const std::vector<Detection>& de
     std::vector<Detection> results;
     results.reserve(tracked.size());
     for (const auto& tr : tracked) {
+        auto tlbr = tr.tlbr();
+        results.emplace_back(tlbr[0], tlbr[1], tlbr[2], tlbr[3], tr.score, tr.class_id, tr.track_id);
+    }
+    return results;
+}
         auto tlbr = tr.tlbr();
         results.emplace_back(tlbr[0], tlbr[1], tlbr[2], tlbr[3], tr.score, tr.class_id, tr.track_id);
     }

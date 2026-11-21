@@ -25,7 +25,7 @@ data class LiveScanUiState(
     val telemetry: Telemetry = Telemetry(),
     val isPaused: Boolean = false,
     val isTorchOn: Boolean = false,
-    val confThresh: Float = 0.40f,
+    val confThresh: Float = 0.30f,
     val nmsThresh: Float = 0.45f,
     val isVulkanBackend: Boolean = false,
     val targetResolution: Int = 320

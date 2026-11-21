@@ -168,7 +168,7 @@ fun VideoAuditScreen(
                     }
                 }
 
-                // Top Progress & Unique Count HUD
+                // Top Progress & Count HUD
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -177,29 +177,90 @@ fun VideoAuditScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Unique Products Count Badge
-                    Surface(
-                        color = Slate900.copy(alpha = 0.9f),
-                        shape = RoundedCornerShape(24.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Emerald500)
+                    // Count Badges & Resolution Toggle Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        // Unique Products Tracked Badge
+                        Surface(
+                            color = Slate900.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(20.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Emerald500)
                         ) {
-                            Text(
-                                text = "${uiState.uniqueTrackedCount}",
-                                color = Emerald400,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = stringResource(R.string.txt_unique_products),
-                                color = Slate100,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "${uiState.uniqueTrackedCount}",
+                                    color = Emerald400,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = stringResource(R.string.txt_unique_products),
+                                    color = Slate100,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        // Live Frame Detection Badge & Resolution Toggle
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Live Frame Detections Badge
+                            Surface(
+                                color = Slate900.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Cyan400)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "${uiState.currentDetections.size}",
+                                        color = Cyan400,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.txt_live_frame, uiState.currentDetections.size),
+                                        color = Slate300,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            // Resolution Toggle Button [320px Fast | 640px HD]
+                            Surface(
+                                color = if (uiState.targetResolution == 640) Emerald500.copy(alpha = 0.2f) else Slate800,
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (uiState.targetResolution == 640) Emerald500 else Slate600
+                                ),
+                                modifier = Modifier.clickable {
+                                    if (!uiState.isAuditing) {
+                                        viewModel.toggleResolution()
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = if (uiState.targetResolution == 640) stringResource(R.string.res_640_hd) else stringResource(R.string.res_320_fast),
+                                    color = if (uiState.targetResolution == 640) Emerald400 else Slate300,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
 

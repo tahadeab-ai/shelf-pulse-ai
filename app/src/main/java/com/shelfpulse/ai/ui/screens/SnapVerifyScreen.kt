@@ -756,7 +756,12 @@ fun SnapVerifyScreen(
                             val syncConfig = syncPrefs.getSyncConfig()
                             val initialStatus = if (syncConfig.enabled && syncConfig.autoSyncOnSave) "QUEUED" else "LOCAL_ONLY"
 
-                            viewModel.saveSession(shelfInput, notesInput, initialSyncStatus = initialStatus) {
+                            viewModel.saveSession(
+                                shelfLocation = shelfInput,
+                                notes = notesInput,
+                                initialSyncStatus = initialStatus,
+                                context = context
+                            ) {
                                 if (initialStatus == "QUEUED") {
                                     SyncAuditWorker.enqueueOneTimeSync(context)
                                 }

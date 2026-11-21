@@ -235,7 +235,8 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmap(
     jobject bitmap,
     jfloat conf_thresh,
     jfloat nms_thresh,
-    jboolean enable_tracking) {
+    jboolean enable_tracking,
+    jint target_size) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -271,8 +272,9 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmap(
     frame.step = static_cast<int>(info.stride);
     frame.rotation_degrees = 0;
 
+    int active_target = (target_size > 0) ? target_size : 640;
     std::vector<shelfpulse::Detection> detections = g_detector->detect(
-        frame, conf_thresh, nms_thresh, 640, &timings
+        frame, conf_thresh, nms_thresh, active_target, &timings
     );
 
     if (enable_tracking && g_tracker) {

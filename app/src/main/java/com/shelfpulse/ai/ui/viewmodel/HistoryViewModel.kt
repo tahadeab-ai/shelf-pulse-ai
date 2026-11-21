@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shelfpulse.ai.data.export.ExportManager
 import com.shelfpulse.ai.data.repository.InventoryRepository
+import com.shelfpulse.ai.data.storage.SessionPhotoStore
 import com.shelfpulse.ai.data.sync.HttpSyncConnector
 import com.shelfpulse.ai.data.sync.SyncAuditWorker
 import com.shelfpulse.ai.data.sync.SyncConfig
@@ -40,8 +41,19 @@ class HistoryViewModel(
 
     fun deleteSession(sessionId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
+            val session = repository.getSessionById(sessionId)
+            session?.photoPath?.let { path ->
+                SessionPhotoStore.deletePhoto(path)
+            }
             repository.deleteSession(sessionId)
         }
+    }
+
+    suspend fun getAnnotatedPhoto(session: InventorySession): Bitmap? = withContext(Dispatchers.IO) {
+        val photoPath = session.photoPath ?: return@withContext null
+        val baseBmp = SessionPhotoStore.loadPhoto(photoPath) ?: return@withContext null
+        val records = repository.getRecordsForSession(session.id)
+        ExportManager.createAnnotatedBitmap(baseBmp, session, records)
     }
 
     fun exportAndShare(
@@ -55,13 +67,7 @@ class HistoryViewModel(
             val uri: Uri = when (format) {
                 ExportFormat.CSV -> ExportManager.exportCsv(context, session, records)
                 ExportFormat.JSON -> ExportManager.exportJson(context, session, records)
-                ExportFormat.ANNOTATED_IMAGE -> {
-                    if (snapshotBitmap != null) {
-                        ExportManager.exportAnnotatedImage(context, snapshotBitmap, session, records)
-                    } else {
-                        ExportManager.exportCsv(context, session, records)
-                    }
-                }
+                ExportFormat.ANNOTATED_IMAGE -> ExportManager.exportAnnotatedImage(context, snapshotBitmap, session, records)
                 ExportFormat.PDF -> ExportManager.exportPdfReport(context, session, records, snapshotBitmap)
             }
 

@@ -1,9 +1,11 @@
 package com.shelfpulse.ai.ui.viewmodel
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shelfpulse.ai.data.repository.InventoryRepository
+import com.shelfpulse.ai.data.storage.SessionPhotoStore
 import com.shelfpulse.ai.domain.model.DetectionResult
 import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.domain.model.ShelfScanRecord
@@ -207,10 +209,12 @@ class SnapVerifyViewModel(
         shelfLocation: String,
         notes: String,
         initialSyncStatus: String = "LOCAL_ONLY",
+        context: Context? = null,
         onComplete: (Long) -> Unit = {}
     ) {
         val state = _uiState.value
         val validDetections = state.visibleDetections.filter { !it.isExcluded }
+        val capturedBmp = state.capturedBitmap
 
         viewModelScope.launch(Dispatchers.IO) {
             // Also persist to product catalog if barcode present
@@ -258,6 +262,15 @@ class SnapVerifyViewModel(
             }
 
             val sessionId = repository.saveSession(session, records)
+
+            // Save photo to private internal storage and link to session
+            if (context != null && capturedBmp != null) {
+                val savedPath = SessionPhotoStore.savePhoto(context, sessionId, capturedBmp)
+                if (savedPath != null) {
+                    repository.updatePhotoPath(sessionId, savedPath)
+                }
+            }
+
             _uiState.update { it.copy(isSaved = true, lastSavedSessionId = sessionId) }
             onComplete(sessionId)
         }

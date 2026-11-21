@@ -27,7 +27,8 @@ class ShelfPulseNativeEngine {
         bitmap: Bitmap,
         confThresh: Float,
         nmsThresh: Float,
-        enableTracking: Boolean
+        enableTracking: Boolean,
+        targetSize: Int
     ): FloatArray
 
     private external fun nativeDetectBitmapTiled(
@@ -89,9 +90,10 @@ class ShelfPulseNativeEngine {
         bitmap: Bitmap,
         confThresh: Float = 0.40f,
         nmsThresh: Float = 0.45f,
-        enableTracking: Boolean = false
+        enableTracking: Boolean = false,
+        targetSize: Int = 640
     ): Pair<List<DetectionResult>, Telemetry> {
-        val rawArray = nativeDetectBitmap(bitmap, confThresh, nmsThresh, enableTracking)
+        val rawArray = nativeDetectBitmap(bitmap, confThresh, nmsThresh, enableTracking, targetSize)
         return parseRawOutput(rawArray)
     }
 
