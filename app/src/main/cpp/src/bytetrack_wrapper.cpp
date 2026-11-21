@@ -279,7 +279,7 @@ static void linear_assignment(
 // --- BYTETracker Implementation ---
 
 BYTETracker::BYTETracker(int frame_rate, int track_buffer)
-    : track_thresh_(0.5f), high_thresh_(0.6f), match_thresh_(0.8f),
+    : track_thresh_(0.25f), high_thresh_(0.30f), match_thresh_(0.8f),
       frame_id_(0), max_time_lost_(track_buffer) {}
 
 void BYTETracker::reset() {
@@ -302,6 +302,9 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
     std::vector<STrack> detections_low;
 
     for (const auto& det : detections) {
+        auto box = det.tlwh();
+        float area = box[2] * box[3];
+        if (area <= 0.0001f) continue;
         if (det.score >= track_thresh_) {
             detections_high.push_back(det);
         } else if (det.score >= 0.1f) {
@@ -408,7 +411,11 @@ std::vector<Detection> ByteTrackWrapper::update(const std::vector<Detection>& de
     std::vector<STrack> stracks_in;
     stracks_in.reserve(detections.size());
     for (const auto& det : detections) {
-        std::vector<float> tlwh = {det.x1, det.y1, det.x2 - det.x1, det.y2 - det.y1};
+        float w = det.x2 - det.x1;
+        float h = det.y2 - det.y1;
+        float area = w * h;
+        if (area <= 0.0001f) continue;
+        std::vector<float> tlwh = {det.x1, det.y1, w, h};
         stracks_in.emplace_back(tlwh, det.score, det.class_id);
     }
 

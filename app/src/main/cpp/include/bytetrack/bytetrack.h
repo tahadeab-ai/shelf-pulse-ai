@@ -8,7 +8,7 @@ namespace shelfpulse {
 
 class BYTETracker {
 public:
-    BYTETracker(int frame_rate = 30, int track_buffer = 30);
+    BYTETracker(int frame_rate = 30, int track_buffer = 60);
     ~BYTETracker() = default;
 
     std::vector<STrack> update(const std::vector<STrack>& detections);

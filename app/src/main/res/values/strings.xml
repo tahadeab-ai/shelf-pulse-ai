@@ -14,6 +14,14 @@
     <string name="mode_single_640">Single 640px</string>
     <string name="mode_sahi_2x2">SAHI 2x2 HD</string>
     <string name="txt_products_detected">Products Detected</string>
+    <string name="btn_labels">Labels</string>
+    <string name="btn_labels_off">Hide Labels</string>
+    <string name="btn_reset_zoom">Reset Zoom</string>
+    <string name="lbl_confidence_filter">Conf: %1$d%%</string>
+    <string name="btn_flash">Flash</string>
+    <string name="flash_off">Flash Off</string>
+    <string name="flash_on">Flash On</string>
+    <string name="flash_auto">Flash Auto</string>
     <string name="hint_tap_to_add">Tap product to add manual count (+1)</string>
     <string name="hint_tap_box_to_remove">Tap bounding box to toggle/remove (-1)</string>
     <string name="dialog_session_title">Save Inventory Session</string>

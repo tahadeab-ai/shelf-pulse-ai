@@ -10,7 +10,7 @@ namespace shelfpulse {
 
 class ByteTrackWrapper : public ITracker {
 public:
-    ByteTrackWrapper(int frame_rate = 30, int track_buffer = 30);
+    ByteTrackWrapper(int frame_rate = 30, int track_buffer = 60);
     ~ByteTrackWrapper() override = default;
 
     std::vector<Detection> update(const std::vector<Detection>& detections) override;

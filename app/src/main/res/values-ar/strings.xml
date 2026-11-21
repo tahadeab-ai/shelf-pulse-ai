@@ -15,6 +15,14 @@
     <string name="mode_single_640">مسار مفرد 640</string>
     <string name="mode_sahi_2x2">تجزئة SAHI 2x2</string>
     <string name="txt_products_detected">المنتجات المكتشفة</string>
+    <string name="btn_labels">التسميات</string>
+    <string name="btn_labels_off">إخفاء التسميات</string>
+    <string name="btn_reset_zoom">إعادة ضبط التكبير</string>
+    <string name="lbl_confidence_filter">الثقة: %1$d%%</string>
+    <string name="btn_flash">الفلاش</string>
+    <string name="flash_off">إيقاف الفلاش</string>
+    <string name="flash_on">تشغيل الفلاش</string>
+    <string name="flash_auto">فلاش تلقائي</string>
     <string name="hint_tap_to_add">انقر على أي منتج لإضافة علامة يدوية (+1)</string>
     <string name="hint_tap_box_to_remove">انقر على المربع لإلغاء تحديده (-1)</string>
     <string name="dialog_session_title">حفظ جلسة الجرد</string>

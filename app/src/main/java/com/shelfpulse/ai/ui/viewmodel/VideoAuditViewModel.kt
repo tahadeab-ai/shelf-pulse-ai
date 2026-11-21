@@ -35,7 +35,7 @@ data class VideoAuditUiState(
     val telemetry: Telemetry = Telemetry(),
     val isSaved: Boolean = false,
     val lastSavedSessionId: Long? = null,
-    val confThresh: Float = 0.40f,
+    val confThresh: Float = 0.30f,
     val nmsThresh: Float = 0.45f
 )
 

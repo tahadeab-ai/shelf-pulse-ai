@@ -46,6 +46,7 @@ fun LiveScanScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var cameraControl: CameraControl? by remember { mutableStateOf(null) }
+    var hasFlashUnit by remember { mutableStateOf(false) }
     var showSliders by remember { mutableStateOf(false) }
 
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -68,7 +69,9 @@ fun LiveScanScreen(
         // Live Camera Stream
         AndroidView(
             factory = { ctx ->
-                val previewView = PreviewView(ctx)
+                val previewView = PreviewView(ctx).apply {
+                    scaleType = PreviewView.ScaleType.FIT_CENTER
+                }
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
                 cameraProviderFuture.addListener({
@@ -119,6 +122,7 @@ fun LiveScanScreen(
                             imageAnalysis
                         )
                         cameraControl = camera.cameraControl
+                        hasFlashUnit = camera.cameraInfo.hasFlashUnit()
                     } catch (e: Exception) {
                         android.util.Log.e("LiveScan", "Camera binding failed", e)
                     }
@@ -176,18 +180,20 @@ fun LiveScanScreen(
                     }
                 }
 
-                // Torch Toggle Button
-                IconButton(
-                    onClick = { viewModel.toggleTorch() },
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (uiState.isTorchOn) Amber500 else Slate900.copy(alpha = 0.85f))
-                ) {
-                    Icon(
-                        imageVector = if (uiState.isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                        contentDescription = stringResource(R.string.btn_torch),
-                        tint = if (uiState.isTorchOn) Slate900 else Slate100
-                    )
+                // Torch Toggle Button (guarded by hardware flash unit availability)
+                if (hasFlashUnit) {
+                    IconButton(
+                        onClick = { viewModel.toggleTorch() },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(if (uiState.isTorchOn) Amber500 else Slate900.copy(alpha = 0.85f))
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                            contentDescription = stringResource(R.string.btn_torch),
+                            tint = if (uiState.isTorchOn) Slate900 else Slate100
+                        )
+                    }
                 }
             }
 

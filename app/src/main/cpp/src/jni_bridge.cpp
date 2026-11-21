@@ -100,7 +100,7 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeInit(
     const char* c_bin = env->GetStringUTFChars(bin_path, nullptr);
 
     g_detector = std::make_unique<shelfpulse::Yolo11Ncnn>();
-    g_tracker = std::make_unique<shelfpulse::ByteTrackWrapper>(30, 30);
+    g_tracker = std::make_unique<shelfpulse::ByteTrackWrapper>(30, 60);
 
     bool loaded = g_detector->load_model(c_param, c_bin, use_gpu);
 

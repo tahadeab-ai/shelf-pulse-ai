@@ -128,6 +128,7 @@ fun VideoAuditScreen(
                         frameWidth = previewBitmap.width,
                         frameHeight = previewBitmap.height,
                         isInteractive = false,
+                        showLabels = true,
                         onTapBox = {},
                         onTapEmptyArea = { _, _ -> },
                         modifier = Modifier.fillMaxSize()

@@ -27,13 +27,24 @@ data class SnapVerifyUiState(
     val telemetry: Telemetry = Telemetry(),
     val isProcessing: Boolean = false,
     val scanMode: ScanMode = ScanMode.SINGLE_640,
-    val confThresh: Float = 0.40f,
+    val confThresh: Float = 0.35f,
     val nmsThresh: Float = 0.45f,
     val isSaved: Boolean = false,
-    val lastSavedSessionId: Long? = null
+    val lastSavedSessionId: Long? = null,
+    val liveConfFilter: Float = 0.35f,
+    val showLabels: Boolean = false,
+    val selectedBoxIndex: Int? = null,
+    val flashMode: Int = 2, // ImageCapture.FLASH_MODE_OFF
+    val isTorchOn: Boolean = false
 ) {
     val effectiveCount: Int
         get() = detections.count { !it.isExcluded }
+
+    val visibleDetections: List<DetectionResult>
+        get() = detections.filter { it.isManualMarker || it.score >= liveConfFilter }
+
+    val visibleCount: Int
+        get() = visibleDetections.count { !it.isExcluded }
 }
 
 class SnapVerifyViewModel(
@@ -51,6 +62,34 @@ class SnapVerifyViewModel(
         if (currentBitmap != null) {
             runInference(currentBitmap, mode)
         }
+    }
+
+    fun setLiveConfFilter(thresh: Float) {
+        _uiState.update { it.copy(liveConfFilter = thresh.coerceIn(0.25f, 0.75f)) }
+    }
+
+    fun toggleLabels() {
+        _uiState.update { it.copy(showLabels = !it.showLabels) }
+    }
+
+    fun selectBox(index: Int?) {
+        _uiState.update { it.copy(selectedBoxIndex = index) }
+    }
+
+    fun cycleFlashMode() {
+        _uiState.update { current ->
+            // OFF (2) -> AUTO (0) -> ON (1) -> OFF (2)
+            val nextMode = when (current.flashMode) {
+                2 -> 0 // OFF -> AUTO
+                0 -> 1 // AUTO -> ON
+                else -> 2 // ON -> OFF
+            }
+            current.copy(flashMode = nextMode)
+        }
+    }
+
+    fun toggleTorch() {
+        _uiState.update { it.copy(isTorchOn = !it.isTorchOn) }
     }
 
     fun processCapturedBitmap(bitmap: Bitmap) {
@@ -71,7 +110,7 @@ class SnapVerifyViewModel(
                 ScanMode.SINGLE_640 -> {
                     nativeEngine.detectBitmap(
                         bitmap = bitmap,
-                        confThresh = _uiState.value.confThresh,
+                        confThresh = 0.25f, // Run with lower threshold so liveConfFilter can slide smoothly up to 0.75
                         nmsThresh = _uiState.value.nmsThresh,
                         enableTracking = false
                     )
@@ -79,7 +118,7 @@ class SnapVerifyViewModel(
                 ScanMode.SAHI_2X2 -> {
                     nativeEngine.detectBitmapTiled(
                         bitmap = bitmap,
-                        confThresh = _uiState.value.confThresh,
+                        confThresh = 0.25f,
                         nmsThresh = _uiState.value.nmsThresh,
                         overlapRatio = 0.20f
                     )
@@ -98,11 +137,13 @@ class SnapVerifyViewModel(
 
     fun toggleBoxExclusion(index: Int) {
         _uiState.update { current ->
-            if (index in current.detections.indices) {
-                val updated = current.detections.toMutableList()
-                val target = updated[index]
-                updated[index] = target.copy(isExcluded = !target.isExcluded)
-                current.copy(detections = updated)
+            val targetList = current.visibleDetections
+            if (index in targetList.indices) {
+                val target = targetList[index]
+                val updated = current.detections.map { det ->
+                    if (det.id == target.id) det.copy(isExcluded = !det.isExcluded) else det
+                }
+                current.copy(detections = updated, selectedBoxIndex = index)
             } else {
                 current
             }
@@ -111,12 +152,12 @@ class SnapVerifyViewModel(
 
     fun addManualMarker(imgX: Float, imgY: Float) {
         _uiState.update { current ->
-            val markerSize = 40f
+            val markerHalfSize = 0.025f
             val manualDetection = DetectionResult(
-                x1 = (imgX - markerSize).coerceAtLeast(0f),
-                y1 = (imgY - markerSize).coerceAtLeast(0f),
-                x2 = imgX + markerSize,
-                y2 = imgY + markerSize,
+                x1 = (imgX - markerHalfSize).coerceIn(0f, 1f),
+                y1 = (imgY - markerHalfSize).coerceIn(0f, 1f),
+                x2 = (imgX + markerHalfSize).coerceIn(0f, 1f),
+                y2 = (imgY + markerHalfSize).coerceIn(0f, 1f),
                 score = 1.0f,
                 classId = 0,
                 trackId = -1,
@@ -129,7 +170,7 @@ class SnapVerifyViewModel(
 
     fun saveSession(shelfLocation: String, notes: String, onComplete: () -> Unit = {}) {
         val state = _uiState.value
-        val validDetections = state.detections.filter { !it.isExcluded }
+        val validDetections = state.visibleDetections.filter { !it.isExcluded }
 
         viewModelScope.launch(Dispatchers.IO) {
             val session = InventorySession(
@@ -168,7 +209,11 @@ class SnapVerifyViewModel(
             SnapVerifyUiState(
                 scanMode = it.scanMode,
                 confThresh = it.confThresh,
-                nmsThresh = it.nmsThresh
+                nmsThresh = it.nmsThresh,
+                liveConfFilter = it.liveConfFilter,
+                showLabels = it.showLabels,
+                flashMode = it.flashMode,
+                isTorchOn = it.isTorchOn
             )
         }
     }

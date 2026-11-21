@@ -269,7 +269,13 @@ void Yolo11Ncnn::decode_detections(
 
                     if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
 
-                    candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, score, best_label, -1);
+                    // Strictly normalize coordinates to [0.0f..1.0f] relative to original image dimensions
+                    float norm_x1 = std::clamp(orig_x1 / static_cast<float>(max_w), 0.0f, 1.0f);
+                    float norm_y1 = std::clamp(orig_y1 / static_cast<float>(max_h), 0.0f, 1.0f);
+                    float norm_x2 = std::clamp(orig_x2 / static_cast<float>(max_w), 0.0f, 1.0f);
+                    float norm_y2 = std::clamp(orig_y2 / static_cast<float>(max_h), 0.0f, 1.0f);
+
+                    candidates.emplace_back(norm_x1, norm_y1, norm_x2, norm_y2, score, best_label, -1);
                 }
             }
             pred_row_offset += num_grid;
@@ -365,7 +371,13 @@ void Yolo11Ncnn::decode_detections(
 
             if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
 
-            candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
+            // Strictly normalize coordinates to [0.0f..1.0f] relative to original image dimensions
+            float norm_x1 = std::clamp(orig_x1 / static_cast<float>(max_w), 0.0f, 1.0f);
+            float norm_y1 = std::clamp(orig_y1 / static_cast<float>(max_h), 0.0f, 1.0f);
+            float norm_x2 = std::clamp(orig_x2 / static_cast<float>(max_w), 0.0f, 1.0f);
+            float norm_y2 = std::clamp(orig_y2 / static_cast<float>(max_h), 0.0f, 1.0f);
+
+            candidates.emplace_back(norm_x1, norm_y1, norm_x2, norm_y2, max_score, best_class, -1);
         }
     }
 }
