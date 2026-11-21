@@ -25,7 +25,7 @@ class HttpSyncConnector : InventorySyncConnector {
                 readTimeout = 10000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                setRequestProperty("User-Agent", "ShelfPulseAI/2.2 (Android)")
+                setRequestProperty("User-Agent", "ShelfPulseAI/2.3 (Android)")
                 if (config.bearerToken.isNotBlank()) {
                     setRequestProperty("Authorization", "Bearer ${config.bearerToken.trim()}")
                 }
@@ -65,13 +65,13 @@ class HttpSyncConnector : InventorySyncConnector {
                 readTimeout = 10000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                setRequestProperty("User-Agent", "ShelfPulseAI/2.2 (Android)")
+                setRequestProperty("User-Agent", "ShelfPulseAI/2.3 (Android)")
                 if (config.bearerToken.isNotBlank()) {
                     setRequestProperty("Authorization", "Bearer ${config.bearerToken.trim()}")
                 }
             }
 
-            val testPayload = "{\"test\":true,\"source\":\"ShelfPulseAI/2.2\",\"ping\":${System.currentTimeMillis()}}"
+            val testPayload = "{\"test\":true,\"source\":\"ShelfPulseAI/2.3\",\"ping\":${System.currentTimeMillis()}}"
             OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
                 writer.write(testPayload)
                 writer.flush()

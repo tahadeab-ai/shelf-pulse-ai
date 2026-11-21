@@ -2,9 +2,9 @@
 
 <img src="docs/assets/logo.svg" alt="ShelfPulse AI Logo" width="120" height="120" />
 
-# ShelfPulse AI — v2.2.0 Enterprise Retail Suite
+# ShelfPulse AI — v2.3.0 Enterprise Retail Suite
 
-**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 Tiling, ByteTrack-cpp, zxing-cpp Barcode Scanner, Multi-Format Exporter, and Pluggable ERP Sync.**
+**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 & 3x3 Ultra Tiling, ByteTrack-cpp, zxing-cpp Barcode Scanner, In-App Arabic/English Switcher, Shelf Depth Multiplier, Internal Photo Storage with Embedded PDF Reports, and Pluggable ERP Sync.**
 
 [![Android Release](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml)
 [![Android CI](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml)
@@ -29,18 +29,20 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
 - **Hardware-Accelerated Detection:** Runs **YOLO11 NCNN FP16** with dynamic **CPU (ARM NEON)** and **Vulkan GPU** toggles plus dual-resolution support (**320px Fast Live Scan** @ **29–30 FPS** and **640px HD Snap & Verify**).
 - **Exact Bounding Box Alignment (v2.0.1):** Native C++ box normalization unpads letterbox borders directly to original image coordinates; paired with pure Kotlin `CoordinateMapper.kt` ensuring zero bounding boxes ever float outside the rendered image.
 - **Pro CV Overlay & Pinch-to-Zoom (v2.0.1):** 3-zone non-overlapping layout (Top HUD, Central Zoomable Viewport, Bottom Actions), crisp 1.5dp corner brackets, live confidence threshold filter slider, and Flash/Torch toggle.
-- **Native SAHI 2x2 Tiling (v2.0.0):** Native C++17 Slicing Aided Hyper Inference splits dense shelf images into overlapping tiles (20% overlap) + 1 global overview pass, boosting SKU recall by **+31.6%** over standard single-pass 640px detection.
+- **Native SAHI 2x2 & 3x3 Ultra Tiling (v2.3.0):** Native C++17 Slicing Aided Hyper Inference supports both `2×2` (5 passes) and `3×3 Ultra` (10 passes: 9 overlapping tiles @ 20% overlap + 1 global overview), boosting small-item recall by **+31.6%** to **+48%** on massive retail shelves. Includes smart geometric false-positive filtering to eliminate shelf rails, wall signs, and seam artifacts.
+- **Shelf Depth Multiplier (v2.3.0):** Solves the real-world challenge of rear products hidden behind the front row. Operators set a depth multiplier ($1\times$ to $20\times$), computing $\text{Total Units} = \text{Front Facings} \times \text{Depth}$ in real time, reflected across Top HUD, History, variance metrics, and exports.
+- **In-App Arabic / English Switcher (v2.3.0):** Instant locale switching between **العربية** (RTL) and **English** (LTR) via top-bar globe toggle and Settings sheet, functioning independently without changing Android system language.
+- **Internal Session Photo Storage & Embedded PDF Reports (v2.3.0):** Auto-compresses audit photos into private app internal storage (`session_photos/`), displays photo thumbnails in History cards, and embeds the high-resolution shelf photo proof directly inside the exported A4 bilingual PDF audit report.
+- **Verified Pluggable ERP & Webhook Integrations (v2.3.0):** Native connectors for **Generic Webhooks** (n8n, Zapier, custom POS), **InvenTree REST API** (`/api/stock/count/`), and **ERPNext** (`Stock Reconciliation`), fully integration-tested against live local HTTP endpoints with `WorkManager` offline queuing.
 - **Offline Barcode Scanner + Open Food Facts (v2.1.0):** Embedded C++17 `zxing-cpp` (EAN-13, EAN-8, UPC-A, UPC-E, Code 128, QR Code) with zero Google Play Services dependency. Includes graceful online enrichment via Open Food Facts API when network is available.
-- **Enterprise Multi-Format Export Suite (v2.1.0):**
-  - **Professional PDF Report:** Native Android `PdfDocument` with bilingual English and Arabic RTL typography.
+- **Enterprise Multi-Format Export Suite:**
+  - **Professional PDF Report:** Native Android `PdfDocument` with bilingual English and Arabic RTL typography and embedded shelf photo proof.
   - **Annotated Proof Photo:** High-res JPEG canvas render with drawn bounding boxes, timestamp, and audit metadata banner.
   - **Excel-Compatible CSV:** UTF-8 BOM encoding for seamless bilingual display in Microsoft Excel.
-  - **Standardized JSON (Schema 2.2):** Full structured audit data for automation pipelines.
-- **Pluggable ERP & Webhook Integrations (v2.2.0):** Native connectors for **Generic Webhooks** (n8n, Zapier, custom POS), **InvenTree REST API** (`/api/stock/count/`), and **ERPNext** (`Stock Reconciliation`).
-- **WorkManager Background Offline Sync Queue (v2.2.0):** Automatic battery-friendly background sync (`SyncAuditWorker`) triggered on network connectivity with exponential backoff and manual retry pills in Audit History.
-- **Video Walkthrough Audit (v2.0.0):** Analyzes recorded aisle walkthroughs frame-by-frame via **ByteTrack-cpp** tracking, accumulating unique item counts without duplicates.
+  - **Standardized JSON (Schema 2.3):** Full structured audit data including `depthMultiplier` and `totalCount`.
+- **Video Walkthrough Audit (v2.3.0):** Analyzes recorded aisle walkthroughs frame-by-frame via **ByteTrack-cpp** tracking with immediate track activation on frame 1, accumulating unique item counts without duplicates.
+- **Custom Model Training via Google Colab:** Self-contained Jupyter notebook (`notebooks/train_yolo11_sku110k_colab.ipynb`) for training YOLO11s / YOLO11m on SKU-110K and exporting dynamic PNNX NCNN FP16 weights.
 - **Human-in-the-Loop:** Interactive verification canvas with $+1$ tap-to-add missing items and $-1$ tap-to-exclude false detections.
-- **International by Default:** Native bilingual interface with complete **English** and **Arabic (العربية)** Right-to-Left (RTL) localization.
 
 ---
 
@@ -89,19 +91,21 @@ Standardized JSON payload ideal for automation webhooks (n8n, Zapier, Make, Node
 ```json
 {
   "event": "inventory.audit.completed",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "timestamp": 1732190400000,
   "session": {
     "sessionId": 42,
     "timestamp": 1732190400000,
-    "totalCount": 24,
+    "frontFacings": 24,
+    "depthMultiplier": 3,
+    "totalCount": 72,
     "operatorNotes": "Shelf A-12 Beverage Row",
     "mode": "STILL_SAHI",
     "barcode": "5449000000996",
     "productName": "Coca-Cola Original 330ml",
-    "expectedStock": 30,
+    "expectedStock": 80,
     "unitPrice": 1.50,
-    "discrepancy": -6
+    "discrepancy": -8
   },
   "detections": [
     {
@@ -267,7 +271,7 @@ This project strictly enforces clean Git hygiene and zero local binary bloat:
    ```
 2. Trigger the automated GitHub Actions workflow:
    ```bash
-   gh workflow run android-release.yml -f tag_name=v2.2.0
+   gh workflow run android-release.yml -f tag_name=v2.3.0
    ```
 3. GitHub Actions builds the native C++17 library using cached NDK r27, NCNN, opencv-mobile, and Eigen, runs all unit tests, and publishes the signed artifact.
 

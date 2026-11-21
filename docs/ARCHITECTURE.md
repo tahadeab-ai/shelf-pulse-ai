@@ -143,38 +143,43 @@ In Android Jetpack Compose, an image displayed with `ContentScale.Fit` creates l
 
 ---
 
-## 4. Media Studio: Native SAHI 2x2 Tiling & Video Walkthrough Audit (v2.0.0)
+## 4. Media Studio: Native SAHI 2x2 & 3x3 Ultra Tiling & Video Walkthrough Audit (v2.3.0)
 
-### A. Native C++17 SAHI 2x2 Tiling (`detect_tiled` in `yolo11_ncnn.cpp`)
-High-resolution shelf photographs suffer from scale disparity: small retail products (~30–50px) vanish when downsampled to a standard $640 \times 640$ model input. ShelfPulse AI implements a native C++17 **Slicing Aided Hyper Inference (SAHI)** pipeline:
+### A. Native C++17 SAHI Tiling (`detect_tiled` in `yolo11_ncnn.cpp`)
+High-resolution shelf photographs suffer from scale disparity: small retail products (~30–50px) vanish when downsampled to a standard $640 \times 640$ model input. ShelfPulse AI implements a native C++17 **Slicing Aided Hyper Inference (SAHI)** pipeline supporting both $2 \times 2$ (5 passes) and $3 \times 3\ \text{Ultra}$ (10 passes):
 
 ```mermaid
 flowchart TD
-    Raw["High-Res Image (up to 2048px)"] --> Slices["2x2 Overlapping Slices (20% overlap)<br/>W_slice = ⌈W*(1+0.2)/2⌉<br/>H_slice = ⌈H*(1+0.2)/2⌉"]
-    Raw --> Global["Global Overview Pass<br/>(Full Image Resized to 640px)"]
-    Slices --> TileInf["4x Tile Inferences @ 640px<br/>(Kryo 485 OpenMP CPU)"]
-    Global --> GlobalInf["1x Overview Inference @ 640px"]
-    TileInf --> Map["Coordinate Remapping to Original Space:<br/>x_orig = (x_tile + tile_x_offset) / W_orig<br/>y_orig = (y_tile + tile_y_offset) / H_orig"]
-    GlobalInf --> Map
-    Map --> GNMS["Global NMS Pass<br/>(IoU threshold = 0.45, Conf = 0.40)"]
-    GNMS --> Merged["Deduplicated Detections (+31.6% Recall)"]
+    Raw["High-Res Image (up to 2048px)"] --> Mode{"SAHI Grid Mode"}
+    Mode -- "2x2 Tiling (5 passes)" --> Slices2["4 Overlapping Tiles (20% overlap)<br/>+ 1 Full Overview Pass"]
+    Mode -- "3x3 Ultra (10 passes)" --> Slices3["9 Overlapping Tiles (20% overlap)<br/>+ 1 Full Overview Pass"]
+    Slices2 --> Inf["Tile Inferences @ 640px<br/>(Kryo 485 OpenMP CPU / Vulkan)"]
+    Slices3 --> Inf
+    Inf --> GeoFilter["Geometric False-Positive Filter:<br/>area ≤ 0.45 & 0.125 ≤ aspect_ratio ≤ 8.0"]
+    GeoFilter --> Map["Coordinate Remapping to Root Space:<br/>x_orig = (x_tile + tile_x_offset) / W_orig<br/>y_orig = (y_tile + tile_y_offset) / H_orig"]
+    Map --> GNMS["Global NMS Pass<br/>(IoU threshold = 0.45)"]
+    GNMS --> Merged["Deduplicated Detections (+31.6% to +48% Recall)"]
 ```
 
 1. **Slice Geometry Formulation:**
-   Given an image of dimensions $W \times H$ and overlap ratio $\rho = 0.20$:
-   $$W_{\text{slice}} = \left\lceil \frac{W \cdot (1 + \rho)}{2} \right\rceil, \quad H_{\text{slice}} = \left\lceil \frac{H \cdot (1 + \rho)}{2} \right\rceil$$
-   $$X_{\text{offset}} = [0, W - W_{\text{slice}}], \quad Y_{\text{offset}} = [0, H - H_{\text{slice}}]$$
+   Given an image of dimensions $W \times H$, grid size $G \in \{2, 3\}$, and overlap ratio $\rho = 0.20$:
+   $$W_{\text{slice}} = \left\lceil \frac{W \cdot (1 + \rho \cdot (G - 1))}{G} \right\rceil, \quad H_{\text{slice}} = \left\lceil \frac{H \cdot (1 + \rho \cdot (G - 1))}{G} \right\rceil$$
+   Tile steps along each axis are computed to evenly distribute the overlap across the $G$ segments.
 2. **Global Overview Pass:**
-   In addition to the 4 overlapping quadrants, a 5th full-image inference is executed to capture packages spanning across tile seams.
-3. **Global Non-Maximum Suppression (Global NMS):**
-   Raw candidate boxes from all 5 passes (typically 800–1,200 candidates) are accumulated into a contiguous buffer and filtered using greedy NMS. Bounding boxes on tile borders with $\text{IoU} > 0.45$ are merged, resulting in clean, non-duplicated item counts.
+   In addition to the $G \times G$ overlapping tiles, an overview pass of the entire downscaled image is executed to capture large objects spanning multiple tiles.
+3. **Smart Geometric False-Positive Filtering:**
+   Before accumulating candidate boxes, C++ post-processing filters out geometrically impossible shapes that typically represent shelf rails, wall signs, or floor borders:
+   - Area constraint: $\text{box\_area} \le 0.45 \times \text{frame\_area}$ (eliminates giant background regions).
+   - Aspect ratio constraint: $0.125 \le \frac{w}{h} \le 8.0$ (eliminates thin horizontal shelf bars or vertical partition seams).
+4. **Global Non-Maximum Suppression (Global NMS):**
+   Raw candidate boxes from all passes are accumulated into a contiguous buffer and filtered using greedy NMS with $\text{IoU} = 0.45$, merging seam duplicates.
 
 ### B. Video Walkthrough Audit Architecture
 Designed for handheld video recording of supermarket aisles:
 1. **Photo Picker Integration:** Uses Android's modern `ActivityResultContracts.PickVisualMedia` with `VideoOnly`, requiring zero storage permission declarations in `AndroidManifest.xml`.
-2. **Background Sampling Coroutine:** Executes on `Dispatchers.Default` at a controlled 4 FPS rate (`FRAME_INTERVAL_MS = 250L`) using `MediaMetadataRetriever.getScaledFrameAtTime(timeUs, OPTION_CLOSEST, 640, 640)`.
+2. **Background Sampling Coroutine:** Executes on `Dispatchers.Default` at a controlled 4 FPS rate (`FRAME_INTERVAL_MS = 250L`) using `MediaMetadataRetriever.getScaledFrameAtTime(timeUs, OPTION_CLOSEST, 640, 640)` with user toggle between 320px Fast and 640px HD.
 3. **Software ARGB_8888 Memory Bridge:** Automatically checks and copies hardware buffers to non-hardware `ARGB_8888` bitmaps, ensuring 100% crash-free NDK `AndroidBitmap_lockPixels` safety.
-4. **ByteTrack-cpp Continuity:** Calls `nativeResetTracker()` before each audit session to reset Kalman state vectors and ID counters, preventing cross-session identity leakage.
+4. **ByteTrack-cpp Continuity:** Immediate track activation on frame 1 (`frame_id == 1` or high-confidence detections) assigns sequential positive track IDs without waiting for multi-frame confirmation, solving 0-tracked counts on short video clips. Coordinates operate cleanly in $[0.0f, 1.0f]$ normalized space.
 
 ---
 
@@ -251,10 +256,54 @@ ShelfPulse AI maintains strict backward compatibility with zero data loss using 
 | **v2** | v2.0.0 | `MIGRATION_1_2`: Added Media Studio fields to `inventory_sessions`: `mode TEXT NOT NULL DEFAULT 'STILL'`, `rawBoxCount INTEGER NOT NULL DEFAULT 0`, `mergedBoxCount INTEGER NOT NULL DEFAULT 0`, `tileCount INTEGER NOT NULL DEFAULT 1`, `durationMs INTEGER NOT NULL DEFAULT 0`. |
 | **v3** | v2.1.0 | `MIGRATION_2_3`: Created `product_catalog` table (`barcode PRIMARY KEY`, `name`, `brand`, `expectedStock`, `unitPrice`, `updatedAt`). Added SKU binding columns to `inventory_sessions`: `barcode TEXT`, `productName TEXT`, `expectedStock INTEGER`, `unitPrice REAL`. |
 | **v4** | v2.2.0 | `MIGRATION_3_4`: Added background sync tracking to `inventory_sessions`: `syncStatus TEXT NOT NULL DEFAULT 'LOCAL_ONLY'`, `lastSyncedAt INTEGER`. |
+| **v5** | v2.2.0 | `MIGRATION_4_5`: Added internal session photo path: `photoPath TEXT`. Managed by `SessionPhotoStore.kt` in private internal storage (`session_photos/session_<id>.jpg`) and embedded in PDF reports. |
+| **v6** | v2.3.0 | `MIGRATION_5_6`: Added shelf depth multiplier: `depthMultiplier INTEGER NOT NULL DEFAULT 1` to compute rear product quantities. |
 
 ---
 
-## 9. Phase-2 Roadmap: SKU Embedding & Catalog Matching
+## 9. Shelf Depth Multiplier & Financial Valuation (v2.3.0)
+
+In physical retail environments, products sit in rows behind the front-facing item. ShelfPulse AI introduces the **Shelf Depth Multiplier** ($1\times$ to $20\times$, default $1\times$):
+
+$$\text{totalCount} = \text{frontFacings} \times \text{depthMultiplier}$$
+$$\text{variance} = \text{totalCount} - \text{expectedStock}$$
+$$\text{totalFinancialValue} = \text{totalCount} \times \text{unitPrice}$$
+
+- **Real-Time HUD Stepper:** Operators adjust depth with `-` / `+` chips on `SnapVerifyScreen.kt`, instantly recomputing total units and variance before saving.
+- **Export Consistency:** The depth multiplier and computed total count are propagated across PDF reports, CSV BOM exports, JSON schema 2.3, and ERP payloads.
+
+---
+
+## 10. In-App Bilingual Localization Architecture (v2.3.0)
+
+ShelfPulse AI supports complete in-app locale switching between **English (LTR)** and **Arabic / العربية (RTL)** without changing the host Android OS system language:
+
+1. **Per-App Language API:** Built on `androidx.appcompat:appcompat:1.7.0` and `AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(langTag))`.
+2. **Persistence:** Android's `AppLocalesMetadataHolderService` declared in `AndroidManifest.xml` automatically persists the selected locale across application process lifecycles.
+3. **UI Integration:** Accessible via a compact globe button in the top app bar and in the Settings & Integrations sheet.
+4. **Complete RTL Layout:** All components dynamically adapt layout directions (`LayoutDirection.Rtl`), margins, and alignments.
+
+---
+
+## 11. Localhost HTTP Integration Testing Architecture (v2.3.0)
+
+To ensure enterprise-grade stability for ERP and Webhook synchronization without external network dependencies, `SyncIntegrationTest.kt` utilizes the JDK built-in HTTP server:
+
+```mermaid
+flowchart LR
+    Test["SyncIntegrationTest<br/>(JUnit 4)"] --> Ephemeral["HttpServer.create()<br/>(127.0.0.1:0 Ephemeral Port)"]
+    Ephemeral --> Connector["HttpSyncConnector<br/>(Client Under Test)"]
+    Connector -->|HTTP POST| Ephemeral
+    Ephemeral --> Assertions["Server Handler Assertions:<br/>1. Method == POST<br/>2. Header: Authorization & Content-Type<br/>3. Body: depthMultiplier, totalCount, variance<br/>4. Status: 200, 201, 401, 500"]
+```
+
+- **Zero External Dependencies:** Uses standard `com.sun.net.httpserver.HttpServer`, requiring zero additional Gradle dependencies or MockWebServer bloat.
+- **Port Collision Immune:** Binds to `InetSocketAddress("127.0.0.1", 0)`, allowing the OS kernel to assign an ephemeral free port.
+- **Full Coverage:** Validates `GENERIC_WEBHOOK`, `INVENTREE_REST`, `ERPNEXT_STOCK_RECONCILIATION`, header formats, JSON schemas, and error code propagation.
+
+---
+
+## 12. Phase-2 Roadmap: SKU Embedding & Catalog Matching
 
 The native architecture exposes an extensible `IEmbedder` interface in `interfaces.h`:
 ```cpp
