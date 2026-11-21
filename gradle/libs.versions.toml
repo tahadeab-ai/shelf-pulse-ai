@@ -12,7 +12,7 @@ coroutines = "1.9.0"
 junit = "4.13.2"
 truth = "1.4.4"
 turbine = "1.2.0"
-zxingCpp = "3.1.1"
+zxingCpp = "2.3.0"
 
 [libraries]
 # AndroidX & Lifecycle
