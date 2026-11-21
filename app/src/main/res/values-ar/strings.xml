@@ -59,6 +59,39 @@
     <string name="vulkan_gpu">معالج الرسوميات Vulkan</string>
     <string name="cpu_neon">المعالج المركزي NEON</string>
 
+    <!-- Barcode & SKU Linking -->
+    <string name="sheet_barcode_title">ربط الباركود / رمز المنتج (SKU)</string>
+    <string name="sheet_barcode_subtitle">امسح الباركود بالكاميرا أو ابحث عبر Open Food Facts</string>
+    <string name="btn_toggle_camera">تبديل ماسح الكاميرا</string>
+    <string name="lbl_barcode_sku">رمز الباركود / EAN / UPC</string>
+    <string name="btn_lookup_online">بحث عبر الإنترنت</string>
+    <string name="msg_barcode_detected">تم اكتشاف الباركود: %1$s</string>
+    <string name="msg_product_found">تم العثور على المنتج: %1$s</string>
+    <string name="msg_product_not_found">لم يتم العثور على المنتج في Open Food Facts</string>
+    <string name="lbl_product_name">اسم المنتج</string>
+    <string name="lbl_product_brand">العلامة التجارية (اختياري)</string>
+    <string name="lbl_expected_stock">المخزون المتوقع</string>
+    <string name="lbl_unit_price">سعر الوحدة</string>
+    <string name="btn_link_sku_confirm">تأكيد وربط رمز المنتج</string>
+    <string name="btn_link_barcode_sku">ربط رمز المنتج</string>
+    <string name="lbl_sku_linked">المنتج: %1$s</string>
+    <string name="lbl_variance_surplus">+%1$d فائض</string>
+    <string name="lbl_variance_shortage">%1$d عجز</string>
+    <string name="lbl_variance_match">مطابق للمخزون</string>
+
+    <!-- Multi-Format Export Suite -->
+    <string name="btn_export_share">تصدير / مشاركة</string>
+    <string name="sheet_export_title">تصدير ومشاركة بيانات الجرد</string>
+    <string name="sheet_export_subtitle">اختر الصيغة المناسبة لأنظمة ERP أو التقارير أو الأرشفة</string>
+    <string name="export_pdf_title">تقرير تدقيق PDF</string>
+    <string name="export_pdf_desc">تقرير A4 قابل للطباعة يتضمن فروقات المخزون والبيانات</string>
+    <string name="export_image_title">صورة إثبات بصرية محددة</string>
+    <string name="export_image_desc">صورة JPEG عالية الدقة مع مربعات التحديد والعلامة المائية</string>
+    <string name="export_csv_title">ملف Microsoft Excel (CSV)</string>
+    <string name="export_csv_desc">ملف CSV بترميز UTF-8 مع الإحداثيات وبيانات المنتج</string>
+    <string name="export_json_title">بيانات JSON القياسية</string>
+    <string name="export_json_desc">جاهز للتكامل مع أنظمة ERP أو PowerBI أو أتمتة n8n</string>
+
     <!-- History -->
     <string name="history_title">سجلات الجرد</string>
     <string name="btn_export_csv">تصدير ملف CSV</string>

@@ -58,6 +58,39 @@
     <string name="vulkan_gpu">Vulkan GPU</string>
     <string name="cpu_neon">CPU NEON</string>
 
+    <!-- Barcode & SKU Linking -->
+    <string name="sheet_barcode_title">Link Barcode / SKU</string>
+    <string name="sheet_barcode_subtitle">Scan barcode or lookup online via Open Food Facts</string>
+    <string name="btn_toggle_camera">Toggle Camera Scanner</string>
+    <string name="lbl_barcode_sku">Barcode / EAN / UPC</string>
+    <string name="btn_lookup_online">Lookup Online</string>
+    <string name="msg_barcode_detected">Barcode detected: %1$s</string>
+    <string name="msg_product_found">Found: %1$s</string>
+    <string name="msg_product_not_found">Product not found on Open Food Facts</string>
+    <string name="lbl_product_name">Product Name</string>
+    <string name="lbl_product_brand">Brand (Optional)</string>
+    <string name="lbl_expected_stock">Expected Stock</string>
+    <string name="lbl_unit_price">Unit Price ($)</string>
+    <string name="btn_link_sku_confirm">Confirm &amp; Link SKU</string>
+    <string name="btn_link_barcode_sku">Link SKU</string>
+    <string name="lbl_sku_linked">SKU: %1$s</string>
+    <string name="lbl_variance_surplus">+%1$d Surplus</string>
+    <string name="lbl_variance_shortage">%1$d Shortage</string>
+    <string name="lbl_variance_match">Stock Match</string>
+
+    <!-- Multi-Format Export Suite -->
+    <string name="btn_export_share">Export / Share</string>
+    <string name="sheet_export_title">Export &amp; Share Inventory</string>
+    <string name="sheet_export_subtitle">Choose format for ERP, reporting, or archive</string>
+    <string name="export_pdf_title">PDF Audit Report</string>
+    <string name="export_pdf_desc">Printable A4 report with SKU variance and metrics</string>
+    <string name="export_image_title">Annotated Proof Photo</string>
+    <string name="export_image_desc">JPEG photo with visual boxes and watermark</string>
+    <string name="export_csv_title">Microsoft Excel CSV</string>
+    <string name="export_csv_desc">UTF-8 BOM CSV with itemized coordinates and SKU metrics</string>
+    <string name="export_json_title">Standardized JSON</string>
+    <string name="export_json_desc">Ready for ERP, PowerBI, or n8n workflow automation</string>
+
     <!-- History -->
     <string name="history_title">Inventory Records</string>
     <string name="btn_export_csv">Export CSV</string>

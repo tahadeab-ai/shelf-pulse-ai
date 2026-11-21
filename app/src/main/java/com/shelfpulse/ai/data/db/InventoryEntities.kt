@@ -17,7 +17,22 @@ data class InventorySessionEntity(
     val rawBoxCount: Int = 0,
     val mergedBoxCount: Int = 0,
     val tileCount: Int = 0,
-    val durationMs: Long = 0L
+    val durationMs: Long = 0L,
+    val barcode: String? = null,
+    val productName: String? = null,
+    val expectedStock: Int? = null,
+    val unitPrice: Double? = null
+)
+
+@Entity(tableName = "product_catalog")
+data class ProductCatalogEntity(
+    @PrimaryKey
+    val barcode: String,
+    val name: String,
+    val brand: String = "",
+    val expectedStock: Int = 0,
+    val unitPrice: Double = 0.0,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(

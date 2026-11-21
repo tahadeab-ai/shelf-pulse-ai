@@ -19,7 +19,7 @@ class ShelfPulseApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         database = ShelfPulseDatabase.getInstance(this)
-        repository = InventoryRepository(database.inventoryDao())
+        repository = InventoryRepository(database.inventoryDao(), database.productCatalogDao())
         nativeEngine = ShelfPulseNativeEngine()
     }
 }

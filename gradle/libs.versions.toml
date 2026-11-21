@@ -12,6 +12,7 @@ coroutines = "1.9.0"
 junit = "4.13.2"
 truth = "1.4.4"
 turbine = "1.2.0"
+zxingCpp = "3.1.1"
 
 [libraries]
 # AndroidX & Lifecycle
@@ -46,6 +47,9 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 # Coroutines
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Barcode Scanning (zxing-cpp)
+zxing-cpp = { group = "io.github.zxing-cpp", name = "android", version.ref = "zxingCpp" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -35,7 +35,12 @@ data class SnapVerifyUiState(
     val showLabels: Boolean = false,
     val selectedBoxIndex: Int? = null,
     val flashMode: Int = 2, // ImageCapture.FLASH_MODE_OFF
-    val isTorchOn: Boolean = false
+    val isTorchOn: Boolean = false,
+    val linkedBarcode: String? = null,
+    val linkedProductName: String? = null,
+    val linkedBrand: String? = null,
+    val linkedExpectedStock: Int? = null,
+    val linkedUnitPrice: Double? = null
 ) {
     val effectiveCount: Int
         get() = detections.count { !it.isExcluded }
@@ -45,6 +50,12 @@ data class SnapVerifyUiState(
 
     val visibleCount: Int
         get() = visibleDetections.count { !it.isExcluded }
+
+    val variance: Int?
+        get() = linkedExpectedStock?.let { visibleCount - it }
+
+    val totalFinancialValue: Double?
+        get() = linkedUnitPrice?.let { visibleCount * it }
 }
 
 class SnapVerifyViewModel(
@@ -90,6 +101,30 @@ class SnapVerifyViewModel(
 
     fun toggleTorch() {
         _uiState.update { it.copy(isTorchOn = !it.isTorchOn) }
+    }
+
+    fun linkSku(barcode: String, productName: String, brand: String, expectedStock: Int, unitPrice: Double) {
+        _uiState.update {
+            it.copy(
+                linkedBarcode = barcode.ifBlank { null },
+                linkedProductName = productName.ifBlank { null },
+                linkedBrand = brand.ifBlank { null },
+                linkedExpectedStock = expectedStock.takeIf { s -> s > 0 },
+                linkedUnitPrice = unitPrice.takeIf { p -> p > 0.0 }
+            )
+        }
+    }
+
+    fun clearLinkedSku() {
+        _uiState.update {
+            it.copy(
+                linkedBarcode = null,
+                linkedProductName = null,
+                linkedBrand = null,
+                linkedExpectedStock = null,
+                linkedUnitPrice = null
+            )
+        }
     }
 
     fun processCapturedBitmap(bitmap: Bitmap) {
@@ -173,6 +208,20 @@ class SnapVerifyViewModel(
         val validDetections = state.visibleDetections.filter { !it.isExcluded }
 
         viewModelScope.launch(Dispatchers.IO) {
+            // Also persist to product catalog if barcode present
+            if (!state.linkedBarcode.isNullOrBlank() && !state.linkedProductName.isNullOrBlank()) {
+                repository.upsertProduct(
+                    com.shelfpulse.ai.data.db.ProductCatalogEntity(
+                        barcode = state.linkedBarcode,
+                        name = state.linkedProductName,
+                        brand = state.linkedBrand ?: "",
+                        expectedStock = state.linkedExpectedStock ?: 0,
+                        unitPrice = state.linkedUnitPrice ?: 0.0,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+
             val session = InventorySession(
                 shelfLocation = shelfLocation.ifBlank { "Unspecified Shelf" },
                 totalCount = validDetections.size,
@@ -181,7 +230,11 @@ class SnapVerifyViewModel(
                 rawBoxCount = state.telemetry.rawBoxCount,
                 mergedBoxCount = state.telemetry.mergedBoxCount,
                 tileCount = state.telemetry.tileCount,
-                durationMs = state.telemetry.totalLatencyMs.toLong()
+                durationMs = state.telemetry.totalLatencyMs.toLong(),
+                barcode = state.linkedBarcode,
+                productName = state.linkedProductName,
+                expectedStock = state.linkedExpectedStock,
+                unitPrice = state.linkedUnitPrice
             )
 
             val records = validDetections.map { det ->

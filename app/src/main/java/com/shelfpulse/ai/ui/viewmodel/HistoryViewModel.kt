@@ -2,10 +2,11 @@ package com.shelfpulse.ai.ui.viewmodel
 
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.FileProvider
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shelfpulse.ai.data.csv.CsvExporter
+import com.shelfpulse.ai.data.export.ExportManager
 import com.shelfpulse.ai.data.repository.InventoryRepository
 import com.shelfpulse.ai.domain.model.InventorySession
 import kotlinx.coroutines.Dispatchers
@@ -14,8 +15,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
+
+enum class ExportFormat {
+    PDF,
+    ANNOTATED_IMAGE,
+    CSV,
+    JSON
+}
 
 class HistoryViewModel(
     private val repository: InventoryRepository
@@ -34,41 +40,51 @@ class HistoryViewModel(
         }
     }
 
-    fun exportAndShareCsv(context: Context, session: InventorySession) {
+    fun exportAndShare(
+        context: Context,
+        session: InventorySession,
+        format: ExportFormat,
+        snapshotBitmap: Bitmap? = null
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val records = repository.getRecordsForSession(session.id)
-            val fileName = "shelfpulse_session_${session.id}_${session.timestamp}.csv"
-            val file = File(context.cacheDir, fileName)
+            val uri: Uri = when (format) {
+                ExportFormat.CSV -> ExportManager.exportCsv(context, session, records)
+                ExportFormat.JSON -> ExportManager.exportJson(context, session, records)
+                ExportFormat.ANNOTATED_IMAGE -> {
+                    if (snapshotBitmap != null) {
+                        ExportManager.exportAnnotatedImage(context, snapshotBitmap, session, records)
+                    } else {
+                        ExportManager.exportCsv(context, session, records)
+                    }
+                }
+                ExportFormat.PDF -> ExportManager.exportPdfReport(context, session, records, snapshotBitmap)
+            }
 
-            FileOutputStream(file).use { out ->
-                CsvExporter.writeSessionCsvToStream(session, records, out)
+            val mimeType = when (format) {
+                ExportFormat.CSV -> "text/csv"
+                ExportFormat.JSON -> "application/json"
+                ExportFormat.ANNOTATED_IMAGE -> "image/jpeg"
+                ExportFormat.PDF -> "application/pdf"
             }
 
             withContext(Dispatchers.Main) {
                 try {
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/csv"
+                        type = mimeType
                         putExtra(Intent.EXTRA_STREAM, uri)
-                        putExtra(Intent.EXTRA_SUBJECT, "ShelfPulse Inventory Report - Session #${session.id}")
+                        putExtra(Intent.EXTRA_SUBJECT, "ShelfPulse Inventory Report - Session #${session.id} (${session.shelfLocation})")
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share Inventory CSV"))
+                    context.startActivity(Intent.createChooser(shareIntent, "Share Inventory Report"))
                 } catch (e: Exception) {
-                    // Fallback to plain text share if FileProvider fails
-                    val csvString = CsvExporter.exportSessionToCsvString(session, records)
-                    val textIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, csvString)
-                        putExtra(Intent.EXTRA_SUBJECT, "ShelfPulse Inventory Report - Session #${session.id}")
-                    }
-                    context.startActivity(Intent.createChooser(textIntent, "Share Inventory Data"))
+                    android.util.Log.e("HistoryViewModel", "Share failed", e)
                 }
             }
         }
+    }
+
+    fun exportAndShareCsv(context: Context, session: InventorySession) {
+        exportAndShare(context, session, ExportFormat.CSV)
     }
 }

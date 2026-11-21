@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.shelfpulse.ai.R
+import com.shelfpulse.ai.ui.components.BarcodeScanSheet
 import com.shelfpulse.ai.ui.components.ImageImportHelper
 import com.shelfpulse.ai.ui.components.InteractiveBoundingBoxCanvas
 import com.shelfpulse.ai.ui.theme.*
@@ -57,6 +58,7 @@ fun SnapVerifyScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var showSaveDialog by remember { mutableStateOf(false) }
+    var showBarcodeSheet by remember { mutableStateOf(false) }
     var shelfInput by remember { mutableStateOf("") }
     var notesInput by remember { mutableStateOf("") }
 
@@ -388,6 +390,111 @@ fun SnapVerifyScreen(
                                 )
                             }
                         }
+
+                        // Row 3: Barcode / SKU Link Chip & Variance / Value
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (uiState.linkedProductName != null || uiState.linkedBarcode != null) {
+                                Surface(
+                                    color = Slate800,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Emerald500.copy(alpha = 0.5f)),
+                                    modifier = Modifier.clickable { showBarcodeSheet = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.QrCode,
+                                            contentDescription = null,
+                                            tint = Emerald400,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = uiState.linkedProductName ?: uiState.linkedBarcode.orEmpty(),
+                                            color = Slate100,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        uiState.variance?.let { v ->
+                                            val vColor = when {
+                                                v > 0 -> Emerald400
+                                                v < 0 -> Rose500
+                                                else -> Slate300
+                                            }
+                                            val vText = when {
+                                                v > 0 -> "+$v"
+                                                v < 0 -> "$v"
+                                                else -> "±0"
+                                            }
+                                            Surface(
+                                                color = vColor.copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = vText,
+                                                    color = vColor,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        uiState.totalFinancialValue?.let { fVal ->
+                                            Text(
+                                                text = "$${"%.2f".format(fVal)}",
+                                                color = Amber400,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.clearLinkedSku() },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = null,
+                                        tint = Slate400,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    color = Slate800,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Slate700),
+                                    modifier = Modifier.clickable { showBarcodeSheet = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = null,
+                                            tint = Emerald400,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.btn_link_barcode_sku),
+                                            color = Emerald400,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -571,6 +678,45 @@ fun SnapVerifyScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (uiState.linkedProductName != null || uiState.linkedBarcode != null) {
+                            Surface(
+                                color = Slate900,
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Emerald500.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.lbl_sku_linked, uiState.linkedProductName ?: uiState.linkedBarcode.orEmpty()),
+                                        color = Emerald400,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    uiState.variance?.let { v ->
+                                        val vText = when {
+                                            v > 0 -> stringResource(R.string.lbl_variance_surplus, v)
+                                            v < 0 -> stringResource(R.string.lbl_variance_shortage, v)
+                                            else -> stringResource(R.string.lbl_variance_match)
+                                        }
+                                        Text(text = vText, color = if (v >= 0) Emerald400 else Rose500, fontSize = 11.sp)
+                                    }
+                                    uiState.totalFinancialValue?.let { v ->
+                                        Text(text = "Total Value: $${"%.2f".format(v)}", color = Amber400, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { showBarcodeSheet = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Emerald400)
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = stringResource(R.string.btn_link_barcode_sku), fontSize = 12.sp)
+                            }
+                        }
+
                         OutlinedTextField(
                             value = shelfInput,
                             onValueChange = { shelfInput = it },
@@ -618,6 +764,21 @@ fun SnapVerifyScreen(
                     TextButton(onClick = { showSaveDialog = false }) {
                         Text(text = stringResource(R.string.btn_cancel), color = Slate400)
                     }
+                }
+            )
+        }
+
+        // Barcode / SKU Scan & Lookup Sheet
+        if (showBarcodeSheet) {
+            BarcodeScanSheet(
+                initialBarcode = uiState.linkedBarcode,
+                initialProductName = uiState.linkedProductName,
+                initialExpectedStock = uiState.linkedExpectedStock,
+                initialUnitPrice = uiState.linkedUnitPrice,
+                onDismiss = { showBarcodeSheet = false },
+                onConfirm = { barcode, productName, brand, stock, price ->
+                    viewModel.linkSku(barcode, productName, brand, stock, price)
+                    showBarcodeSheet = false
                 }
             )
         }

@@ -10,8 +10,18 @@ data class InventorySession(
     val rawBoxCount: Int = 0,
     val mergedBoxCount: Int = 0,
     val tileCount: Int = 0,
-    val durationMs: Long = 0L
-)
+    val durationMs: Long = 0L,
+    val barcode: String? = null,
+    val productName: String? = null,
+    val expectedStock: Int? = null,
+    val unitPrice: Double? = null
+) {
+    val variance: Int?
+        get() = expectedStock?.let { totalCount - it }
+
+    val totalFinancialValue: Double?
+        get() = unitPrice?.let { totalCount * it }
+}
 
 data class ShelfScanRecord(
     val id: Long = 0,

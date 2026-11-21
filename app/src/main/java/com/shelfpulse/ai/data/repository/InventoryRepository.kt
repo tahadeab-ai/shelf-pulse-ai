@@ -2,13 +2,19 @@ package com.shelfpulse.ai.data.repository
 
 import com.shelfpulse.ai.data.db.InventoryDao
 import com.shelfpulse.ai.data.db.InventorySessionEntity
+import com.shelfpulse.ai.data.db.ProductCatalogDao
+import com.shelfpulse.ai.data.db.ProductCatalogEntity
 import com.shelfpulse.ai.data.db.ShelfScanRecordEntity
 import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.domain.model.ShelfScanRecord
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-class InventoryRepository(private val dao: InventoryDao) {
+class InventoryRepository(
+    private val dao: InventoryDao,
+    private val catalogDao: ProductCatalogDao? = null
+) {
 
     val allSessions: Flow<List<InventorySession>> = dao.getAllSessions().map { entities ->
         entities.map { entity ->
@@ -22,7 +28,11 @@ class InventoryRepository(private val dao: InventoryDao) {
                 rawBoxCount = entity.rawBoxCount,
                 mergedBoxCount = entity.mergedBoxCount,
                 tileCount = entity.tileCount,
-                durationMs = entity.durationMs
+                durationMs = entity.durationMs,
+                barcode = entity.barcode,
+                productName = entity.productName,
+                expectedStock = entity.expectedStock,
+                unitPrice = entity.unitPrice
             )
         }
     }
@@ -38,7 +48,11 @@ class InventoryRepository(private val dao: InventoryDao) {
             rawBoxCount = session.rawBoxCount,
             mergedBoxCount = session.mergedBoxCount,
             tileCount = session.tileCount,
-            durationMs = session.durationMs
+            durationMs = session.durationMs,
+            barcode = session.barcode,
+            productName = session.productName,
+            expectedStock = session.expectedStock,
+            unitPrice = session.unitPrice
         )
 
         val recordEntities = records.map { r ->
@@ -82,5 +96,25 @@ class InventoryRepository(private val dao: InventoryDao) {
 
     suspend fun deleteSession(sessionId: Long) {
         dao.deleteSession(sessionId)
+    }
+
+    suspend fun upsertProduct(product: ProductCatalogEntity) {
+        catalogDao?.upsertProduct(product)
+    }
+
+    suspend fun getProductByBarcode(barcode: String): ProductCatalogEntity? {
+        return catalogDao?.getByBarcode(barcode)
+    }
+
+    suspend fun searchProducts(query: String): List<ProductCatalogEntity> {
+        return catalogDao?.searchByName(query) ?: emptyList()
+    }
+
+    fun getAllProductsFlow(): Flow<List<ProductCatalogEntity>> {
+        return catalogDao?.getAllFlow() ?: flowOf(emptyList())
+    }
+
+    suspend fun deleteProduct(barcode: String) {
+        catalogDao?.delete(barcode)
     }
 }
