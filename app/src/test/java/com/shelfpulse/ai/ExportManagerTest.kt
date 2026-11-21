@@ -57,7 +57,7 @@ class ExportManagerTest {
         assertThat(csv.startsWith("\uFEFF")).isTrue()
 
         // Verify Header and Summary fields
-        assertThat(csv).contains("Session ID,Timestamp,Shelf Location,Total Count,Mode,Barcode,Product Name,Expected Stock,Variance,Unit Price,Total Value,Operator Notes")
+        assertThat(csv).contains("Session ID,Timestamp,Shelf Location,Front Facings,Depth Multiplier,Total Count,Mode,Barcode,Product Name,Expected Stock,Variance,Unit Price,Total Value,Operator Notes")
         assertThat(csv).contains("101,")
         assertThat(csv).contains("\"Aisle 3, Shelf B\"")
         assertThat(csv).contains("7622210449283")
@@ -120,6 +120,9 @@ class ExportManagerTest {
         val sessionObj = root.getJSONObject("session")
         assertThat(sessionObj.getLong("id")).isEqualTo(202L)
         assertThat(sessionObj.getString("shelfLocation")).isEqualTo("Beverages Bay 2")
+        assertThat(sessionObj.getInt("frontFacings")).isEqualTo(15)
+        assertThat(sessionObj.getInt("depthMultiplier")).isEqualTo(1)
+        assertThat(sessionObj.getInt("totalCount")).isEqualTo(15)
         assertThat(sessionObj.getString("mode")).isEqualTo("SAHI_2X2")
         assertThat(sessionObj.getInt("tileCount")).isEqualTo(4)
 

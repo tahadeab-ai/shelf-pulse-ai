@@ -58,7 +58,7 @@ public:
     virtual ~IDetector() = default;
     virtual bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) = 0;
     virtual std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) = 0;
-    virtual std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, StageTimings* timings = nullptr) = 0;
+    virtual std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, int grid_size = 2, StageTimings* timings = nullptr) = 0;
     virtual bool is_gpu_active() const = 0;
     virtual bool set_backend(bool use_gpu) = 0;
 };

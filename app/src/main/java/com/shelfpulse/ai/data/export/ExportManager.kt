@@ -33,10 +33,12 @@ object ExportManager {
         sb.append("\uFEFF")
 
         // Summary Header
-        sb.append("Session ID,Timestamp,Shelf Location,Total Count,Mode,Barcode,Product Name,Expected Stock,Variance,Unit Price,Total Value,Operator Notes\n")
+        sb.append("Session ID,Timestamp,Shelf Location,Front Facings,Depth Multiplier,Total Count,Mode,Barcode,Product Name,Expected Stock,Variance,Unit Price,Total Value,Operator Notes\n")
         sb.append(escape(session.id.toString())).append(",")
         sb.append(escape(dateString)).append(",")
         sb.append(escape(session.shelfLocation)).append(",")
+        sb.append(session.frontFacings).append(",")
+        sb.append(session.depthMultiplier).append(",")
         sb.append(session.totalCount).append(",")
         sb.append(escape(session.mode)).append(",")
         sb.append(escape(session.barcode ?: "")).append(",")
@@ -76,6 +78,9 @@ object ExportManager {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
         sessionObj.put("dateIso", dateFormat.format(Date(session.timestamp)))
         sessionObj.put("shelfLocation", session.shelfLocation)
+        sessionObj.put("frontFacings", session.frontFacings)
+        sessionObj.put("depthMultiplier", session.depthMultiplier)
+        sessionObj.put("totalCount", session.totalCount)
         sessionObj.put("mode", session.mode)
         sessionObj.put("operatorNotes", session.operatorNotes)
         sessionObj.put("durationMs", session.durationMs)
@@ -304,8 +309,13 @@ object ExportManager {
         canvas.drawText("SHELF / AISLE LOCATION", 30f, curY, labelPaint)
         canvas.drawText(session.shelfLocation, 30f, curY + 16f, valuePaint)
 
-        canvas.drawText("SCAN MODE", 220f, curY, labelPaint)
-        canvas.drawText(session.mode, 220f, curY + 16f, valuePaint)
+        canvas.drawText("SCAN MODE & DEPTH", 220f, curY, labelPaint)
+        val modeDepthText = if (session.depthMultiplier > 1) {
+            "${session.mode} (Depth: ${session.depthMultiplier}×)"
+        } else {
+            session.mode
+        }
+        canvas.drawText(modeDepthText, 220f, curY + 16f, valuePaint)
 
         canvas.drawText("TOTAL COUNTED", 420f, curY, labelPaint)
         val countPaint = Paint().apply {
@@ -314,7 +324,12 @@ object ExportManager {
             isAntiAlias = true
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText("${session.totalCount} items", 420f, curY + 16f, countPaint)
+        val countText = if (session.depthMultiplier > 1) {
+            "${session.totalCount} items (${session.frontFacings}×${session.depthMultiplier})"
+        } else {
+            "${session.totalCount} items"
+        }
+        canvas.drawText(countText, 420f, curY + 16f, countPaint)
 
         curY += 45f
 

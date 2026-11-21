@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 
 enum class ScanMode {
     SINGLE_640,
-    SAHI_2X2
+    SAHI_2X2,
+    SAHI_3X3
 }
 
 data class SnapVerifyUiState(
@@ -29,15 +30,16 @@ data class SnapVerifyUiState(
     val telemetry: Telemetry = Telemetry(),
     val isProcessing: Boolean = false,
     val scanMode: ScanMode = ScanMode.SINGLE_640,
-    val confThresh: Float = 0.35f,
+    val confThresh: Float = 0.32f,
     val nmsThresh: Float = 0.45f,
     val isSaved: Boolean = false,
     val lastSavedSessionId: Long? = null,
-    val liveConfFilter: Float = 0.35f,
+    val liveConfFilter: Float = 0.32f,
     val showLabels: Boolean = false,
     val selectedBoxIndex: Int? = null,
     val flashMode: Int = 2, // ImageCapture.FLASH_MODE_OFF
     val isTorchOn: Boolean = false,
+    val depthMultiplier: Int = 1,
     val linkedBarcode: String? = null,
     val linkedProductName: String? = null,
     val linkedBrand: String? = null,
@@ -53,11 +55,17 @@ data class SnapVerifyUiState(
     val visibleCount: Int
         get() = visibleDetections.count { !it.isExcluded }
 
+    val frontFacings: Int
+        get() = visibleCount
+
+    val totalCountWithDepth: Int
+        get() = frontFacings * depthMultiplier.coerceIn(1, 20)
+
     val variance: Int?
-        get() = linkedExpectedStock?.let { visibleCount - it }
+        get() = linkedExpectedStock?.let { totalCountWithDepth - it }
 
     val totalFinancialValue: Double?
-        get() = linkedUnitPrice?.let { visibleCount * it }
+        get() = linkedUnitPrice?.let { totalCountWithDepth * it }
 }
 
 class SnapVerifyViewModel(
@@ -75,6 +83,10 @@ class SnapVerifyViewModel(
         if (currentBitmap != null) {
             runInference(currentBitmap, mode)
         }
+    }
+
+    fun setDepthMultiplier(depth: Int) {
+        _uiState.update { it.copy(depthMultiplier = depth.coerceIn(1, 20)) }
     }
 
     fun setLiveConfFilter(thresh: Float) {
@@ -156,8 +168,18 @@ class SnapVerifyViewModel(
                     nativeEngine.detectBitmapTiled(
                         bitmap = bitmap,
                         confThresh = 0.25f,
-                        nmsThresh = _uiState.value.nmsThresh,
-                        overlapRatio = 0.20f
+                        nmsThresh = 0.45f,
+                        overlapRatio = 0.20f,
+                        gridSize = 2
+                    )
+                }
+                ScanMode.SAHI_3X3 -> {
+                    nativeEngine.detectBitmapTiled(
+                        bitmap = bitmap,
+                        confThresh = 0.25f,
+                        nmsThresh = 0.45f,
+                        overlapRatio = 0.20f,
+                        gridSize = 3
                     )
                 }
             }
@@ -231,11 +253,17 @@ class SnapVerifyViewModel(
                 )
             }
 
+            val frontCount = validDetections.size
+            val depth = state.depthMultiplier.coerceIn(1, 20)
             val session = InventorySession(
                 shelfLocation = shelfLocation.ifBlank { "Unspecified Shelf" },
-                totalCount = validDetections.size,
+                totalCount = frontCount * depth,
                 operatorNotes = notes,
-                mode = if (state.scanMode == ScanMode.SAHI_2X2) "SNAP_VERIFY_SAHI" else "SNAP_VERIFY",
+                mode = when (state.scanMode) {
+                    ScanMode.SAHI_2X2 -> "SNAP_VERIFY_SAHI_2X2"
+                    ScanMode.SAHI_3X3 -> "SNAP_VERIFY_SAHI_3X3"
+                    ScanMode.SINGLE_640 -> "SNAP_VERIFY"
+                },
                 rawBoxCount = state.telemetry.rawBoxCount,
                 mergedBoxCount = state.telemetry.mergedBoxCount,
                 tileCount = state.telemetry.tileCount,
@@ -244,7 +272,8 @@ class SnapVerifyViewModel(
                 productName = state.linkedProductName,
                 expectedStock = state.linkedExpectedStock,
                 unitPrice = state.linkedUnitPrice,
-                syncStatus = initialSyncStatus
+                syncStatus = initialSyncStatus,
+                depthMultiplier = depth
             )
 
             val records = validDetections.map { det ->

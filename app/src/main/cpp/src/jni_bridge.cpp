@@ -299,7 +299,8 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmapTil
     jobject bitmap,
     jfloat conf_thresh,
     jfloat nms_thresh,
-    jfloat overlap_ratio) {
+    jfloat overlap_ratio,
+    jint grid_size) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -335,8 +336,9 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmapTil
     frame.step = static_cast<int>(info.stride);
     frame.rotation_degrees = 0;
 
+    int active_grid = (grid_size >= 3) ? 3 : 2;
     std::vector<shelfpulse::Detection> detections = g_detector->detect_tiled(
-        frame, conf_thresh, nms_thresh, overlap_ratio, &timings
+        frame, conf_thresh, nms_thresh, overlap_ratio, active_grid, &timings
     );
 
     auto end_time = std::chrono::high_resolution_clock::now();

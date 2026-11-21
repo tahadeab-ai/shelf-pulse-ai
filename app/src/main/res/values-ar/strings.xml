@@ -14,7 +14,17 @@
     <string name="btn_save_session">حفظ الجلسة</string>
     <string name="mode_single_640">مسار مفرد 640</string>
     <string name="mode_sahi_2x2">تجزئة SAHI 2x2</string>
+    <string name="mode_sahi_3x3">تجزئة SAHI 3x3 الفائقة</string>
     <string name="txt_products_detected">المنتجات المكتشفة</string>
+    <string name="txt_units">وحدة</string>
+    <string name="lbl_shelf_depth">عمق الرف (الصفوف الخلفية)</string>
+    <string name="depth_stepper">العمق: %1$d×</string>
+    <string name="calc_summary">%1$d واجهة × %2$d عمق = %3$d وحدة إجمالية</string>
+    <string name="txt_total_units_simple">%1$d وحدة إجمالية</string>
+    <string name="txt_items_counted_with_depth">%1$d عنصر (%2$d×%3$d)</string>
+    <string name="lang_switcher_title">لغة التطبيق</string>
+    <string name="lang_arabic">العربية</string>
+    <string name="lang_english">English</string>
     <string name="btn_labels">التسميات</string>
     <string name="btn_labels_off">إخفاء التسميات</string>
     <string name="btn_reset_zoom">إعادة ضبط التكبير</string>
@@ -39,6 +49,12 @@
     <string name="btn_start_audit">بدء التدقيق</string>
     <string name="btn_cancel_audit">إلغاء التدقيق</string>
     <string name="txt_unique_products">المنتجات الفريدة المتتبعة</string>
+    <string name="txt_live_frame">الإطار اللحظي: %1$d</string>
+    <string name="res_320_fast">320 سريع</string>
+    <string name="res_640_hd">640 فائق الدقة</string>
+    <string name="dialog_view_photo">صورة الرف الموثقة</string>
+    <string name="view_photo">عرض الصورة</string>
+    <string name="btn_close">إغلاق</string>
     <string name="txt_video_ready">الفيديو جاهز للتدقيق</string>
     <string name="txt_video_duration">المدة: %1$.1f ثانية (%2$d إطار)</string>
     <string name="txt_audit_complete">اكتمل تدقيق الفيديو بنجاح</string>

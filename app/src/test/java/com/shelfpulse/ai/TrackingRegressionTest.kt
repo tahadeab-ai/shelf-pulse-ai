@@ -163,4 +163,11 @@ class TrackingRegressionTest {
         assertThat(ShelfPulseDatabase.MIGRATION_4_5.startVersion).isEqualTo(4)
         assertThat(ShelfPulseDatabase.MIGRATION_4_5.endVersion).isEqualTo(5)
     }
+
+    @Test
+    fun database_migration_5_to_6_exists() {
+        assertThat(ShelfPulseDatabase.MIGRATION_5_6).isNotNull()
+        assertThat(ShelfPulseDatabase.MIGRATION_5_6.startVersion).isEqualTo(5)
+        assertThat(ShelfPulseDatabase.MIGRATION_5_6.endVersion).isEqualTo(6)
+    }
 }

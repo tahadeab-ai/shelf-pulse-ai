@@ -35,7 +35,8 @@ class InventoryRepository(
                 unitPrice = entity.unitPrice,
                 syncStatus = entity.syncStatus,
                 lastSyncedAt = entity.lastSyncedAt,
-                photoPath = entity.photoPath
+                photoPath = entity.photoPath,
+                depthMultiplier = entity.depthMultiplier
             )
         }
     }
@@ -58,7 +59,8 @@ class InventoryRepository(
             unitPrice = session.unitPrice,
             syncStatus = session.syncStatus,
             lastSyncedAt = session.lastSyncedAt,
-            photoPath = session.photoPath
+            photoPath = session.photoPath,
+            depthMultiplier = session.depthMultiplier
         )
 
         val recordEntities = records.map { r ->
@@ -119,7 +121,8 @@ class InventoryRepository(
                 unitPrice = entity.unitPrice,
                 syncStatus = entity.syncStatus,
                 lastSyncedAt = entity.lastSyncedAt,
-                photoPath = entity.photoPath
+                photoPath = entity.photoPath,
+                depthMultiplier = entity.depthMultiplier
             )
         }
     }
@@ -155,7 +158,8 @@ class InventoryRepository(
                 unitPrice = entity.unitPrice,
                 syncStatus = entity.syncStatus,
                 lastSyncedAt = entity.lastSyncedAt,
-                photoPath = entity.photoPath
+                photoPath = entity.photoPath,
+                depthMultiplier = entity.depthMultiplier
             )
         }
     }

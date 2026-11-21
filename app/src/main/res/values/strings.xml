@@ -13,7 +13,17 @@
     <string name="btn_save_session">Save Session</string>
     <string name="mode_single_640">Single 640px</string>
     <string name="mode_sahi_2x2">SAHI 2x2 HD</string>
+    <string name="mode_sahi_3x3">SAHI 3x3 Ultra</string>
     <string name="txt_products_detected">Products Detected</string>
+    <string name="txt_units">Units</string>
+    <string name="lbl_shelf_depth">Shelf Depth (Rear Rows)</string>
+    <string name="depth_stepper">Depth: %1$d×</string>
+    <string name="calc_summary">%1$d Facings × %2$d Depth = %3$d Total Units</string>
+    <string name="txt_total_units_simple">%1$d Total Units</string>
+    <string name="txt_items_counted_with_depth">%1$d items (%2$d×%3$d)</string>
+    <string name="lang_switcher_title">App Language</string>
+    <string name="lang_arabic">العربية</string>
+    <string name="lang_english">English</string>
     <string name="btn_labels">Labels</string>
     <string name="btn_labels_off">Hide Labels</string>
     <string name="btn_reset_zoom">Reset Zoom</string>

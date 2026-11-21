@@ -17,13 +17,62 @@ data class InventorySession(
     val unitPrice: Double? = null,
     val syncStatus: String = "LOCAL_ONLY",
     val lastSyncedAt: Long? = null,
-    val photoPath: String? = null
+    val photoPath: String? = null,
+    val depthMultiplier: Int = 1
 ) {
+    val frontFacings: Int
+        get() = if (depthMultiplier > 0) totalCount / depthMultiplier else totalCount
+
     val variance: Int?
         get() = expectedStock?.let { totalCount - it }
 
     val totalFinancialValue: Double?
         get() = unitPrice?.let { totalCount * it }
+
+    companion object {
+        fun fromFacings(
+            id: Long = 0,
+            timestamp: Long = System.currentTimeMillis(),
+            shelfLocation: String,
+            frontFacings: Int,
+            depthMultiplier: Int = 1,
+            operatorNotes: String = "",
+            mode: String = "SNAP_AND_VERIFY",
+            rawBoxCount: Int = 0,
+            mergedBoxCount: Int = 0,
+            tileCount: Int = 0,
+            durationMs: Long = 0L,
+            barcode: String? = null,
+            productName: String? = null,
+            expectedStock: Int? = null,
+            unitPrice: Double? = null,
+            syncStatus: String = "LOCAL_ONLY",
+            lastSyncedAt: Long? = null,
+            photoPath: String? = null
+        ): InventorySession {
+            val clampedDepth = depthMultiplier.coerceIn(1, 20)
+            return InventorySession(
+                id = id,
+                timestamp = timestamp,
+                shelfLocation = shelfLocation,
+                totalCount = frontFacings * clampedDepth,
+                operatorNotes = operatorNotes,
+                mode = mode,
+                rawBoxCount = rawBoxCount,
+                mergedBoxCount = mergedBoxCount,
+                tileCount = tileCount,
+                durationMs = durationMs,
+                barcode = barcode,
+                productName = productName,
+                expectedStock = expectedStock,
+                unitPrice = unitPrice,
+                syncStatus = syncStatus,
+                lastSyncedAt = lastSyncedAt,
+                photoPath = photoPath,
+                depthMultiplier = clampedDepth
+            )
+        }
+    }
 }
 
 data class ShelfScanRecord(

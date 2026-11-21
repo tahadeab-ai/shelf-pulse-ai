@@ -31,6 +31,8 @@ import com.shelfpulse.ai.data.sync.ConnectorPreset
 import com.shelfpulse.ai.data.sync.SyncConfig
 import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.domain.model.InventorySession
+import com.shelfpulse.ai.ui.components.LanguageSwitcherSegmented
+import com.shelfpulse.ai.ui.components.LanguageSwitcherTopBarButton
 import com.shelfpulse.ai.ui.theme.*
 import com.shelfpulse.ai.ui.viewmodel.ExportFormat
 import com.shelfpulse.ai.ui.viewmodel.HistoryViewModel
@@ -59,7 +61,7 @@ fun HistoryScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header Row: Title & Settings Gear Button
+        // Header Row: Title, Language Switcher & Settings Gear Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -72,18 +74,25 @@ fun HistoryScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            IconButton(
-                onClick = { showIntegrationsSheet = true },
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Slate800, RoundedCornerShape(10.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = stringResource(R.string.sheet_integrations_title),
-                    tint = Emerald400,
-                    modifier = Modifier.size(20.dp)
-                )
+                LanguageSwitcherTopBarButton()
+
+                IconButton(
+                    onClick = { showIntegrationsSheet = true },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Slate800, RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.sheet_integrations_title),
+                        tint = Emerald400,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
@@ -406,8 +415,13 @@ private fun SessionCard(
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Emerald500)
                     ) {
+                        val countText = if (session.depthMultiplier > 1) {
+                            "${session.totalCount} items (${session.frontFacings}×${session.depthMultiplier})"
+                        } else {
+                            stringResource(R.string.txt_items_counted, session.totalCount)
+                        }
                         Text(
-                            text = stringResource(R.string.txt_items_counted, session.totalCount),
+                            text = countText,
                             color = Emerald400,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -648,6 +662,11 @@ private fun IntegrationsSettingsSheet(
                 color = Slate400,
                 fontSize = 12.sp
             )
+
+            // Language Switcher (Arabic / English)
+            LanguageSwitcherSegmented()
+
+            HorizontalDivider(color = Slate800)
 
             // Enable Sync Switch
             Row(

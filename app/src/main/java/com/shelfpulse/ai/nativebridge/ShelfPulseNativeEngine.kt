@@ -35,7 +35,8 @@ class ShelfPulseNativeEngine {
         bitmap: Bitmap,
         confThresh: Float,
         nmsThresh: Float,
-        overlapRatio: Float
+        overlapRatio: Float,
+        gridSize: Int
     ): FloatArray
 
     private external fun nativeDetectRgba(
@@ -101,9 +102,10 @@ class ShelfPulseNativeEngine {
         bitmap: Bitmap,
         confThresh: Float = 0.40f,
         nmsThresh: Float = 0.45f,
-        overlapRatio: Float = 0.20f
+        overlapRatio: Float = 0.20f,
+        gridSize: Int = 2
     ): Pair<List<DetectionResult>, Telemetry> {
-        val rawArray = nativeDetectBitmapTiled(bitmap, confThresh, nmsThresh, overlapRatio)
+        val rawArray = nativeDetectBitmapTiled(bitmap, confThresh, nmsThresh, overlapRatio, gridSize)
         return parseRawOutput(rawArray)
     }
 

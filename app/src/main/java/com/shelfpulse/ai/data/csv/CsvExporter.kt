@@ -24,10 +24,12 @@ object CsvExporter {
         sb.append("\uFEFF")
 
         // Metadata Header
-        sb.append("Session ID,Timestamp,Shelf Location,Total Count,Mode,Operator Notes\n")
+        sb.append("Session ID,Timestamp,Shelf Location,Front Facings,Depth Multiplier,Total Count,Mode,Operator Notes\n")
         sb.append(escape(session.id.toString())).append(",")
         sb.append(escape(dateString)).append(",")
         sb.append(escape(session.shelfLocation)).append(",")
+        sb.append(session.frontFacings).append(",")
+        sb.append(session.depthMultiplier).append(",")
         sb.append(session.totalCount).append(",")
         sb.append(escape(session.mode)).append(",")
         sb.append(escape(session.operatorNotes)).append("\n\n")

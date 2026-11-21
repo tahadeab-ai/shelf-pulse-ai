@@ -17,7 +17,7 @@ public:
 
     bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) override;
     std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) override;
-    std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, StageTimings* timings = nullptr) override;
+    std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, int grid_size = 2, StageTimings* timings = nullptr) override;
     bool is_gpu_active() const override { return has_gpu_; }
     bool set_backend(bool use_gpu) override;
 

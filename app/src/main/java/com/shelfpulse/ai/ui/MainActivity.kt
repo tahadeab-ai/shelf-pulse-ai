@@ -3,7 +3,7 @@ package com.shelfpulse.ai.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,7 +42,7 @@ enum class NavigationTab(val titleRes: Int, val icon: ImageVector) {
     HISTORY(R.string.tab_history, Icons.Default.History)
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

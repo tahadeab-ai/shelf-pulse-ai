@@ -44,6 +44,7 @@ import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.ui.components.BarcodeScanSheet
 import com.shelfpulse.ai.ui.components.ImageImportHelper
 import com.shelfpulse.ai.ui.components.InteractiveBoundingBoxCanvas
+import com.shelfpulse.ai.ui.components.LanguageSwitcherTopBarButton
 import com.shelfpulse.ai.ui.theme.*
 import com.shelfpulse.ai.ui.viewmodel.ScanMode
 import com.shelfpulse.ai.ui.viewmodel.SnapVerifyViewModel
@@ -286,7 +287,7 @@ fun SnapVerifyScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Row 1: Mode Toggle & Product Count Badge
+                        // Row 1: Mode Toggle & Language Switcher
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -297,29 +298,58 @@ fun SnapVerifyScreen(
                                 onModeSelected = { viewModel.setScanMode(it) }
                             )
 
-                            // Products Detected Badge
+                            LanguageSwitcherTopBarButton()
+                        }
+
+                        // Row 2: Shelf Depth Multiplier Stepper & Live Units Badge
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CompactDepthStepper(
+                                depth = uiState.depthMultiplier,
+                                onDepthChange = { viewModel.setDepthMultiplier(it) }
+                            )
+
+                            // Products / Units Badge
                             Surface(
                                 color = Slate800,
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.5.dp, Emerald500)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = "${uiState.visibleCount}",
-                                        color = Emerald400,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.txt_products_detected),
-                                        color = Slate200,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    if (uiState.depthMultiplier > 1) {
+                                        Text(
+                                            text = "${uiState.frontFacings}×${uiState.depthMultiplier} = ${uiState.totalCountWithDepth}",
+                                            color = Emerald400,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.txt_units),
+                                            color = Slate200,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "${uiState.visibleCount}",
+                                            color = Emerald400,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.txt_products_detected),
+                                            color = Slate200,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -719,6 +749,52 @@ fun SnapVerifyScreen(
                             }
                         }
 
+                        // Shelf Depth Multiplier Stepper & Total Units Summary
+                        Surface(
+                            color = Slate900,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate700),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.lbl_shelf_depth),
+                                        color = Slate300,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    CompactDepthStepper(
+                                        depth = uiState.depthMultiplier,
+                                        onDepthChange = { viewModel.setDepthMultiplier(it) }
+                                    )
+                                }
+                                val summaryText = if (uiState.depthMultiplier > 1) {
+                                    stringResource(
+                                        R.string.calc_summary,
+                                        uiState.frontFacings,
+                                        uiState.depthMultiplier,
+                                        uiState.totalCountWithDepth
+                                    )
+                                } else {
+                                    stringResource(R.string.txt_total_units_simple, uiState.frontFacings)
+                                }
+                                Text(
+                                    text = summaryText,
+                                    color = Emerald400,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
                         OutlinedTextField(
                             value = shelfInput,
                             onValueChange = { shelfInput = it },
@@ -800,6 +876,60 @@ fun SnapVerifyScreen(
 }
 
 @Composable
+fun CompactDepthStepper(
+    depth: Int,
+    onDepthChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Slate800,
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Slate700),
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+        ) {
+            IconButton(
+                onClick = { if (depth > 1) onDepthChange(depth - 1) },
+                enabled = depth > 1,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease Depth",
+                    tint = if (depth > 1) Emerald400 else Slate600,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Text(
+                text = stringResource(R.string.depth_stepper, depth),
+                color = Slate100,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
+            IconButton(
+                onClick = { if (depth < 20) onDepthChange(depth + 1) },
+                enabled = depth < 20,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase Depth",
+                    tint = if (depth < 20) Emerald400 else Slate600,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SegmentedModeToggle(
     currentMode: ScanMode,
     onModeSelected: (ScanMode) -> Unit
@@ -810,8 +940,8 @@ private fun SegmentedModeToggle(
         border = androidx.compose.foundation.BorderStroke(1.dp, Slate700)
     ) {
         Row(
-            modifier = Modifier.padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Surface(
                 color = if (currentMode == ScanMode.SINGLE_640) Emerald500 else Color.Transparent,
@@ -821,9 +951,9 @@ private fun SegmentedModeToggle(
                 Text(
                     text = stringResource(R.string.mode_single_640),
                     color = if (currentMode == ScanMode.SINGLE_640) Slate900 else Slate400,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                 )
             }
 
@@ -835,9 +965,23 @@ private fun SegmentedModeToggle(
                 Text(
                     text = stringResource(R.string.mode_sahi_2x2),
                     color = if (currentMode == ScanMode.SAHI_2X2) Slate900 else Slate400,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                )
+            }
+
+            Surface(
+                color = if (currentMode == ScanMode.SAHI_3X3) Emerald500 else Color.Transparent,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.clickable { onModeSelected(ScanMode.SAHI_3X3) }
+            ) {
+                Text(
+                    text = stringResource(R.string.mode_sahi_3x3),
+                    color = if (currentMode == ScanMode.SAHI_3X3) Slate900 else Slate400,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                 )
             }
         }

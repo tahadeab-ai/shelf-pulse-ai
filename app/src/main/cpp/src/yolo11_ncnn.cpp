@@ -377,6 +377,19 @@ void Yolo11Ncnn::decode_detections(
             float norm_x2 = std::clamp(orig_x2 / static_cast<float>(max_w), 0.0f, 1.0f);
             float norm_y2 = std::clamp(orig_y2 / static_cast<float>(max_h), 0.0f, 1.0f);
 
+            float norm_w = norm_x2 - norm_x1;
+            float norm_h = norm_y2 - norm_y1;
+            if (norm_w <= 0.0f || norm_h <= 0.0f) continue;
+
+            // Geometric false-positive filtering:
+            // 1. Discard impossible boxes covering > 45% of full frame (e.g. wall banners, whole shelf outlines)
+            float norm_area = norm_w * norm_h;
+            if (norm_area > 0.45f) continue;
+
+            // 2. Discard extreme aspect ratios (> 8:1 or < 1:8, typically shelf rails, wires, or wall edge signs)
+            float aspect_ratio = norm_w / norm_h;
+            if (aspect_ratio > 8.0f || aspect_ratio < 0.125f) continue;
+
             candidates.emplace_back(norm_x1, norm_y1, norm_x2, norm_y2, max_score, best_class, -1);
         }
     }
@@ -478,6 +491,7 @@ std::vector<Detection> Yolo11Ncnn::detect_tiled(
     float conf_thresh,
     float nms_thresh,
     float overlap_ratio,
+    int grid_size,
     StageTimings* timings) {
 
     auto total_start = std::chrono::high_resolution_clock::now();
@@ -507,10 +521,8 @@ std::vector<Detection> Yolo11Ncnn::detect_tiled(
         return {};
     }
 
-    // Compute 2x2 overlapping tiles with overlap_ratio (default 0.20 = 20%)
+    int grid = (grid_size >= 3) ? 3 : 2;
     float overlap = std::clamp(overlap_ratio, 0.05f, 0.50f);
-    int tile_w = std::min(W, static_cast<int>(std::round(W * (1.0f + overlap) / 2.0f)));
-    int tile_h = std::min(H, static_cast<int>(std::round(H * (1.0f + overlap) / 2.0f)));
 
     struct TileRect {
         int x;
@@ -520,14 +532,36 @@ std::vector<Detection> Yolo11Ncnn::detect_tiled(
     };
 
     std::vector<TileRect> tiles;
-    tiles.reserve(5);
-    // 4 Corner / Quadrant tiles
-    tiles.push_back({0, 0, tile_w, tile_h});
-    tiles.push_back({std::max(0, W - tile_w), 0, tile_w, tile_h});
-    tiles.push_back({0, std::max(0, H - tile_h), tile_w, tile_h});
-    tiles.push_back({std::max(0, W - tile_w), std::max(0, H - tile_h), tile_w, tile_h});
-    // 5th pass: Global overview pass (full frame)
-    tiles.push_back({0, 0, W, H});
+
+    if (grid == 2) {
+        // 2x2 grid: 4 tiles + 1 global overview = 5 passes
+        int tile_w = std::min(W, static_cast<int>(std::round(W * (1.0f + overlap) / 2.0f)));
+        int tile_h = std::min(H, static_cast<int>(std::round(H * (1.0f + overlap) / 2.0f)));
+
+        tiles.reserve(5);
+        tiles.push_back({0, 0, tile_w, tile_h});
+        tiles.push_back({std::max(0, W - tile_w), 0, tile_w, tile_h});
+        tiles.push_back({0, std::max(0, H - tile_h), tile_w, tile_h});
+        tiles.push_back({std::max(0, W - tile_w), std::max(0, H - tile_h), tile_w, tile_h});
+        // 5th pass: Global overview pass (full frame)
+        tiles.push_back({0, 0, W, H});
+    } else {
+        // 3x3 grid: 9 tiles + 1 global overview = 10 passes (for ultra-dense shelves with tiny distant packages)
+        int tile_w = std::min(W, static_cast<int>(std::round(W * (1.0f + 2.0f * overlap) / 3.0f)));
+        int tile_h = std::min(H, static_cast<int>(std::round(H * (1.0f + 2.0f * overlap) / 3.0f)));
+
+        tiles.reserve(10);
+        int xs[3] = {0, std::max(0, (W - tile_w) / 2), std::max(0, W - tile_w)};
+        int ys[3] = {0, std::max(0, (H - tile_h) / 2), std::max(0, H - tile_h)};
+
+        for (int r = 0; r < 3; ++r) {
+            for (int c = 0; c < 3; ++c) {
+                tiles.push_back({xs[c], ys[r], tile_w, tile_h});
+            }
+        }
+        // 10th pass: Global overview pass (full frame)
+        tiles.push_back({0, 0, W, H});
+    }
 
     auto prep_end = std::chrono::high_resolution_clock::now();
     float total_prep_ms = std::chrono::duration<float, std::milli>(prep_end - prep_start).count();
@@ -574,14 +608,15 @@ std::vector<Detection> Yolo11Ncnn::detect_tiled(
 
     int raw_box_count = static_cast<int>(all_candidates.size());
 
-    // Global NMS pass across all merged tile candidates
+    // Global NMS pass across all merged tile candidates (tuned to 0.45f to eliminate tile seam duplicates)
     auto nms_start = std::chrono::high_resolution_clock::now();
     std::sort(all_candidates.begin(), all_candidates.end(), [](const Detection& a, const Detection& b) {
         return a.score > b.score;
     });
 
+    float effective_nms = (nms_thresh > 0.0f) ? nms_thresh : 0.45f;
     std::vector<int> picked;
-    nms_sorted_bboxes(all_candidates, picked, nms_thresh);
+    nms_sorted_bboxes(all_candidates, picked, effective_nms);
 
     std::vector<Detection> results;
     results.reserve(picked.size());
@@ -604,8 +639,8 @@ std::vector<Detection> Yolo11Ncnn::detect_tiled(
         timings->merged_box_count = static_cast<int>(results.size());
     }
 
-    LOGI("[SAHI 2x2] Tiles=%zu, RawDets=%d, MergedDets=%zu, Pre=%.1fms, Inf=%.1fms, NMS=%.1fms, Total=%.1fms",
-         tiles.size(), raw_box_count, results.size(), total_prep_ms, total_infer_ms, nms_ms, total_ms);
+    LOGI("[SAHI %dx%d] Tiles=%zu, RawDets=%d, MergedDets=%zu, Pre=%.1fms, Inf=%.1fms, NMS=%.1fms, Total=%.1fms",
+         grid, grid, tiles.size(), raw_box_count, results.size(), total_prep_ms, total_infer_ms, nms_ms, total_ms);
 
     return results;
 }

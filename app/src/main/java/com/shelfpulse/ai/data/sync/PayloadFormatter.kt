@@ -27,6 +27,8 @@ object PayloadFormatter {
         val sessionObj = JSONObject()
         sessionObj.put("id", session.id)
         sessionObj.put("shelfLocation", session.shelfLocation)
+        sessionObj.put("frontFacings", session.frontFacings)
+        sessionObj.put("depthMultiplier", session.depthMultiplier)
         sessionObj.put("totalCount", session.totalCount)
         sessionObj.put("mode", session.mode)
         sessionObj.put("operatorNotes", session.operatorNotes)
@@ -60,6 +62,9 @@ object PayloadFormatter {
 
         val notesBuilder = StringBuilder()
         notesBuilder.append("ShelfPulse v2.2 Count: ").append(session.totalCount)
+        if (session.depthMultiplier > 1) {
+            notesBuilder.append(" (").append(session.frontFacings).append(" Facings x ").append(session.depthMultiplier).append(" Depth)")
+        }
         session.variance?.let { v -> notesBuilder.append(" (Variance: ").append(v).append(")") }
         if (session.operatorNotes.isNotBlank()) {
             notesBuilder.append(" - ").append(session.operatorNotes)

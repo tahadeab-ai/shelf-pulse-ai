@@ -24,7 +24,8 @@ data class InventorySessionEntity(
     val unitPrice: Double? = null,
     val syncStatus: String = "LOCAL_ONLY",
     val lastSyncedAt: Long? = null,
-    val photoPath: String? = null
+    val photoPath: String? = null,
+    val depthMultiplier: Int = 1
 )
 
 @Entity(tableName = "product_catalog")
