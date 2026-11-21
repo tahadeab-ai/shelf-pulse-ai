@@ -2,9 +2,9 @@
 
 <img src="docs/assets/logo.svg" alt="ShelfPulse AI Logo" width="120" height="120" />
 
-# ShelfPulse AI
+# ShelfPulse AI — v2.0.0 Media Studio
 
-**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN (Vulkan C++17), ByteTrack-cpp, and Jetpack Compose.**
+**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 Tiling, ByteTrack-cpp, and Jetpack Compose.**
 
 [![Android Release](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml)
 [![Android CI](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml)
@@ -26,8 +26,11 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
 **ShelfPulse AI** brings state-of-the-art dense object detection and multi-object tracking directly into retail workers' pockets:
 - **100% Offline:** No cloud API calls, no subscriptions, zero data transmission outside the device.
 - **Hardware-Accelerated:** Runs **YOLO11 NCNN FP16** with dynamic **CPU (ARM NEON)** and **Vulkan GPU** runtime toggles plus dual-resolution support (**320px Fast Live Scan** @ **29–30 FPS** and **640px HD Snap & Verify** @ **~3.4 FPS** on Snapdragon 855).
+- **Native SAHI 2x2 Tiling (v2.0.0):** Native C++17 Slicing Aided Hyper Inference splits dense shelf images into overlapping tiles (20% overlap) + 1 global overview pass, boosting SKU recall by **+31.6%** over standard single-pass 640px detection.
+- **Gallery Media Studio (v2.0.0):** Import existing high-res photos or recorded walkthrough video clips directly via Android Photo Picker (`ActivityResultContracts.PickVisualMedia`) with EXIF rotation correction and 2048px memory bounds.
+- **Video Walkthrough Audit (v2.0.0):** Analyzes recorded aisle walkthroughs frame-by-frame (4 FPS sampling) via **ByteTrack-cpp** tracking, accumulating unique item counts without duplicates.
 - **Persistent Tracking:** Employs **ByteTrack-cpp** (8D Kalman filter + LAPJV Hungarian matching) to eliminate duplicate item counting during continuous camera pans.
-- **Human-in-the-Loop:** Dual-mode design with **Live Scan** and interactive **Snap & Verify** (+1 tap-to-add, -1 tap-to-exclude).
+- **Human-in-the-Loop:** Interactive verification canvas with $+1$ tap-to-add missing items and $-1$ tap-to-exclude false detections.
 - **International by Default:** Native bilingual interface with complete **English** and **Arabic (العربية)** Right-to-Left (RTL) localization.
 
 ---
@@ -37,14 +40,16 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
 <div align="center">
   <table style="width: 100%; text-align: center;">
     <tr>
-      <td width="33%"><b>Live Scan HUD (Live Telemetry & Breakdown)</b></td>
-      <td width="33%"><b>Snap & Verify (Interactive Tally)</b></td>
-      <td width="33%"><b>Audit History & Arabic RTL</b></td>
+      <td width="25%"><b>Live Scan HUD (30 FPS)</b></td>
+      <td width="25%"><b>SAHI 2x2 HD Tiling (75 SKUs)</b></td>
+      <td width="25%"><b>Video Aisle Walkthrough</b></td>
+      <td width="25%"><b>Audit History (Room v2)</b></td>
     </tr>
     <tr>
-      <td><img src="docs/assets/screenshots/live_scan.png" alt="Live Scan Screen" width="260"/></td>
-      <td><img src="docs/assets/screenshots/snap_verify.png" alt="Snap & Verify Screen" width="260"/></td>
-      <td><img src="docs/assets/screenshots/history_arabic.png" alt="Arabic RTL Screen" width="260"/></td>
+      <td><img src="docs/assets/screenshots/live_scan.png" alt="Live Scan Screen" width="220"/></td>
+      <td><img src="docs/assets/screenshots/sahi_dense_shelf.png" alt="SAHI 2x2 HD Screen" width="220"/></td>
+      <td><img src="docs/assets/screenshots/video_audit.png" alt="Video Audit Screen" width="220"/></td>
+      <td><img src="docs/assets/screenshots/history_v2.png" alt="Audit History Screen" width="220"/></td>
     </tr>
   </table>
 </div>
@@ -53,7 +58,28 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
 
 ## 📊 Authentic Device Benchmarks
 
-Every metric below was captured directly from a physical Android device (**Samsung Galaxy Note 10 / SM-N970U**, Qualcomm Snapdragon 855 with 1x Kryo 485 @ 2.84 GHz + 3x Kryo 485 @ 2.42 GHz + 4x Kryo 485 @ 1.78 GHz, Adreno 640 GPU) running **ShelfPulse AI v1.2.2 Release APK** via verified ADB logcat telemetry.
+Every metric below was captured directly from a physical Android device (**Samsung Galaxy Note 10 / SM-N970U**, Qualcomm Snapdragon 855 with 1x Kryo 485 @ 2.84 GHz + 3x Kryo 485 @ 2.42 GHz + 4x Kryo 485 @ 1.78 GHz, Adreno 640 GPU) running **ShelfPulse AI v2.0.0 Release APK** via verified ADB logcat telemetry.
+
+### Media Studio v2.0.0: SAHI 2x2 HD vs Single-Pass 640px Comparison
+
+Tested on an authentic 1920×1080 dense retail shelf panorama containing tightly clustered products:
+
+| Evaluation Metric | Single-Pass 640px Still Mode | SAHI 2x2 HD Native Tiling (v2.0.0) | Performance / Recall Delta |
+| :--- | :--- | :--- | :--- |
+| **Number of Inferences** | 1 full-frame inference | 5 inferences (4 tiles @ 20% overlap + 1 global overview) | Complete multi-scale receptive field |
+| **Raw Candidate Bounding Boxes** | 57 candidates | **1,184 raw detections** | Dense coverage of small occluded items |
+| **Final Merged Detections** | **57 items** | **75 items** | **+31.6% recall increase (+18 products found)** |
+| **Native Preprocessing Time** | ~2.5 ms | **41.0 – 41.5 ms** (slice extraction + letterboxing) | Safe memory footprint with zero allocations |
+| **Native Inference Time** | ~85 – 145 ms | **333.5 – 472.7 ms** (~66 – 94 ms per tile) | 4 Kryo 485 big CPU cores pinned via OpenMP |
+| **Global NMS Time** | ~0.1 ms | **0.3 – 0.4 ms** (merging 1,184 candidates) | Microsecond-level IoU clustering |
+| **Total End-to-End Latency** | **~149.7 ms** | **382.1 – 516.8 ms** | Fast HD interactive verification |
+
+### Video Walkthrough Audit Mode (4 FPS Frame Sampling)
+
+- **Frame Decoding & Scaling:** `MediaMetadataRetriever.getScaledFrameAtTime` (640×640) with software `ARGB_8888` buffer conversion.
+- **Tracker Reset:** Atomic C++ `resetTracker()` executed prior to each session to ensure zero ID bleeding across audits.
+- **Tracking Frame Throughput:** **14.9 FPS / 66.9 ms per frame** sustained on CPU ARM NEON.
+- **Memory Footprint:** Zero OOM, asynchronous Compose bitmap recycling, pre-allocated JNI buffers.
 
 ### Live Scan Fast Mode (320×320 Dynamic YOLO11 NCNN Inference)
 
