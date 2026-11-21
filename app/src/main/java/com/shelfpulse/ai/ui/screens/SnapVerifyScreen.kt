@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.shelfpulse.ai.R
+import com.shelfpulse.ai.data.sync.SyncAuditWorker
+import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.ui.components.BarcodeScanSheet
 import com.shelfpulse.ai.ui.components.ImageImportHelper
 import com.shelfpulse.ai.ui.components.InteractiveBoundingBoxCanvas
@@ -750,7 +752,14 @@ fun SnapVerifyScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.saveSession(shelfInput, notesInput) {
+                            val syncPrefs = SyncPreferences(context)
+                            val syncConfig = syncPrefs.getSyncConfig()
+                            val initialStatus = if (syncConfig.enabled && syncConfig.autoSyncOnSave) "QUEUED" else "LOCAL_ONLY"
+
+                            viewModel.saveSession(shelfInput, notesInput, initialSyncStatus = initialStatus) {
+                                if (initialStatus == "QUEUED") {
+                                    SyncAuditWorker.enqueueOneTimeSync(context)
+                                }
                                 showSaveDialog = false
                                 viewModel.reset()
                             }

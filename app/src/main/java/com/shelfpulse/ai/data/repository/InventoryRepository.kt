@@ -32,7 +32,9 @@ class InventoryRepository(
                 barcode = entity.barcode,
                 productName = entity.productName,
                 expectedStock = entity.expectedStock,
-                unitPrice = entity.unitPrice
+                unitPrice = entity.unitPrice,
+                syncStatus = entity.syncStatus,
+                lastSyncedAt = entity.lastSyncedAt
             )
         }
     }
@@ -52,7 +54,9 @@ class InventoryRepository(
             barcode = session.barcode,
             productName = session.productName,
             expectedStock = session.expectedStock,
-            unitPrice = session.unitPrice
+            unitPrice = session.unitPrice,
+            syncStatus = session.syncStatus,
+            lastSyncedAt = session.lastSyncedAt
         )
 
         val recordEntities = records.map { r ->
@@ -96,6 +100,33 @@ class InventoryRepository(
 
     suspend fun deleteSession(sessionId: Long) {
         dao.deleteSession(sessionId)
+    }
+
+    suspend fun updateSyncStatus(sessionId: Long, status: String, syncedAt: Long? = null) {
+        dao.updateSyncStatus(sessionId, status, syncedAt)
+    }
+
+    suspend fun getPendingSyncSessions(): List<InventorySession> {
+        return dao.getPendingSyncSessions().map { entity ->
+            InventorySession(
+                id = entity.id,
+                timestamp = entity.timestamp,
+                shelfLocation = entity.shelfLocation,
+                totalCount = entity.totalCount,
+                operatorNotes = entity.operatorNotes,
+                mode = entity.mode,
+                rawBoxCount = entity.rawBoxCount,
+                mergedBoxCount = entity.mergedBoxCount,
+                tileCount = entity.tileCount,
+                durationMs = entity.durationMs,
+                barcode = entity.barcode,
+                productName = entity.productName,
+                expectedStock = entity.expectedStock,
+                unitPrice = entity.unitPrice,
+                syncStatus = entity.syncStatus,
+                lastSyncedAt = entity.lastSyncedAt
+            )
+        }
     }
 
     suspend fun upsertProduct(product: ProductCatalogEntity) {

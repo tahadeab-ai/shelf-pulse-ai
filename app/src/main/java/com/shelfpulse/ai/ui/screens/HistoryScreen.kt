@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelfpulse.ai.R
+import com.shelfpulse.ai.data.sync.ConnectorPreset
+import com.shelfpulse.ai.data.sync.SyncConfig
+import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.ui.theme.*
 import com.shelfpulse.ai.ui.viewmodel.ExportFormat
@@ -36,6 +41,7 @@ fun HistoryScreen(
     val context = LocalContext.current
     val sessions by viewModel.sessions.collectAsState()
     var selectedSessionForExport by remember { mutableStateOf<InventorySession?>(null) }
+    var showIntegrationsSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -44,12 +50,33 @@ fun HistoryScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = stringResource(R.string.history_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Slate100,
-            fontWeight = FontWeight.Bold
-        )
+        // Header Row: Title & Settings Gear Button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.history_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = Slate100,
+                fontWeight = FontWeight.Bold
+            )
+
+            IconButton(
+                onClick = { showIntegrationsSheet = true },
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Slate800, RoundedCornerShape(10.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = stringResource(R.string.sheet_integrations_title),
+                    tint = Emerald400,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
 
         if (sessions.isEmpty()) {
             Box(
@@ -82,7 +109,8 @@ fun HistoryScreen(
                     SessionCard(
                         session = session,
                         onExportClick = { selectedSessionForExport = session },
-                        onDelete = { viewModel.deleteSession(session.id) }
+                        onDelete = { viewModel.deleteSession(session.id) },
+                        onSyncClick = { viewModel.triggerSessionSync(context, session) }
                     )
                 }
             }
@@ -159,6 +187,22 @@ fun HistoryScreen(
             }
         }
     }
+
+    // ERP & Webhook Integrations Settings Sheet
+    if (showIntegrationsSheet) {
+        val currentConfig = remember { SyncPreferences(context).getSyncConfig() }
+        IntegrationsSettingsSheet(
+            initialConfig = currentConfig,
+            onDismiss = { showIntegrationsSheet = false },
+            onSave = { config ->
+                viewModel.saveSyncConfig(context, config)
+                showIntegrationsSheet = false
+            },
+            onTestConnection = { config, callback ->
+                viewModel.testConnection(config, callback)
+            }
+        )
+    }
 }
 
 @Composable
@@ -225,6 +269,7 @@ private fun SessionCard(
     session: InventorySession,
     onExportClick: () -> Unit,
     onDelete: () -> Unit,
+    onSyncClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dateFormat = SimpleDateFormat("MMM dd, yyyy • HH:mm", Locale.getDefault())
@@ -240,7 +285,7 @@ private fun SessionCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header Row: Shelf Location & Count Badge
+            // Header Row: Shelf Location & Count Badge + Sync Status Pill
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -261,18 +306,54 @@ private fun SessionCard(
                     )
                 }
 
-                Surface(
-                    color = Emerald500.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Emerald500)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = stringResource(R.string.txt_items_counted, session.totalCount),
-                        color = Emerald400,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                    // Sync Status Pill
+                    val (syncColor, syncBg, syncText) = when (session.syncStatus) {
+                        "SYNCED" -> Triple(Emerald400, Emerald500.copy(alpha = 0.15f), stringResource(R.string.sync_status_synced))
+                        "QUEUED" -> Triple(Amber400, Amber500.copy(alpha = 0.15f), stringResource(R.string.sync_status_queued))
+                        "FAILED" -> Triple(Rose500, Rose500.copy(alpha = 0.15f), stringResource(R.string.sync_status_failed))
+                        else -> Triple(Slate400, Slate700, stringResource(R.string.sync_status_local))
+                    }
+
+                    Surface(
+                        color = syncBg,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, syncColor.copy(alpha = 0.5f)),
+                        modifier = Modifier.clickable { onSyncClick() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            val syncIcon = when (session.syncStatus) {
+                                "SYNCED" -> Icons.Default.CloudDone
+                                "QUEUED" -> Icons.Default.CloudSync
+                                "FAILED" -> Icons.Default.SyncProblem
+                                else -> Icons.Default.CloudOff
+                            }
+                            Icon(syncIcon, contentDescription = null, tint = syncColor, modifier = Modifier.size(11.dp))
+                            Text(text = syncText, color = syncColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Count Badge
+                    Surface(
+                        color = Emerald500.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Emerald500)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.txt_items_counted, session.totalCount),
+                            color = Emerald400,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -405,6 +486,246 @@ private fun SessionCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IntegrationsSettingsSheet(
+    initialConfig: SyncConfig,
+    onDismiss: () -> Unit,
+    onSave: (SyncConfig) -> Unit,
+    onTestConnection: (SyncConfig, (Result<String>) -> Unit) -> Unit
+) {
+    var enabled by remember { mutableStateOf(initialConfig.enabled) }
+    var preset by remember { mutableStateOf(initialConfig.preset) }
+    var endpointUrl by remember { mutableStateOf(initialConfig.endpointUrl) }
+    var bearerToken by remember { mutableStateOf(initialConfig.bearerToken) }
+    var autoSyncOnSave by remember { mutableStateOf(initialConfig.autoSyncOnSave) }
+
+    var isTesting by remember { mutableStateOf(false) }
+    var testResultMsg by remember { mutableStateOf<String?>(null) }
+    var testResultIsSuccess by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Slate900,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Slate600) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.sheet_integrations_title),
+                color = Slate100,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.sheet_integrations_subtitle),
+                color = Slate400,
+                fontSize = 12.sp
+            )
+
+            // Enable Sync Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.lbl_enable_sync),
+                    color = Slate200,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { enabled = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Emerald400,
+                        checkedTrackColor = Emerald500.copy(alpha = 0.5f)
+                    )
+                )
+            }
+
+            if (enabled) {
+                // Preset Selector
+                Text(
+                    text = stringResource(R.string.lbl_preset),
+                    color = Slate300,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ConnectorPreset.entries.forEach { p ->
+                        val isSelected = preset == p
+                        Surface(
+                            color = if (isSelected) Slate800 else Slate900,
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) Emerald500 else Slate700
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { preset = p }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { preset = p },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Emerald500)
+                                )
+                                val presetLabel = when (p) {
+                                    ConnectorPreset.GENERIC_WEBHOOK -> stringResource(R.string.preset_generic_webhook)
+                                    ConnectorPreset.INVENTREE_REST -> stringResource(R.string.preset_inventree)
+                                    ConnectorPreset.ERPNEXT_STOCK_RECONCILIATION -> stringResource(R.string.preset_erpnext)
+                                }
+                                Text(text = presetLabel, color = if (isSelected) Slate100 else Slate400, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                // Endpoint URL
+                OutlinedTextField(
+                    value = endpointUrl,
+                    onValueChange = { endpointUrl = it },
+                    label = { Text(stringResource(R.string.lbl_endpoint_url)) },
+                    placeholder = { Text(stringResource(R.string.hint_endpoint_url)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Emerald500,
+                        unfocusedBorderColor = Slate600,
+                        focusedTextColor = Slate100,
+                        unfocusedTextColor = Slate100
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Bearer Token
+                OutlinedTextField(
+                    value = bearerToken,
+                    onValueChange = { bearerToken = it },
+                    label = { Text(stringResource(R.string.lbl_bearer_token)) },
+                    placeholder = { Text(stringResource(R.string.hint_bearer_token)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Emerald500,
+                        unfocusedBorderColor = Slate600,
+                        focusedTextColor = Slate100,
+                        unfocusedTextColor = Slate100
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Auto-sync Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.lbl_auto_sync),
+                        color = Slate300,
+                        fontSize = 13.sp
+                    )
+                    Switch(
+                        checked = autoSyncOnSave,
+                        onCheckedChange = { autoSyncOnSave = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Emerald400,
+                            checkedTrackColor = Emerald500.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                // Test Connection Button & Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            isTesting = true
+                            testResultMsg = null
+                            val currentConfig = SyncConfig(
+                                enabled = enabled,
+                                preset = preset,
+                                endpointUrl = endpointUrl,
+                                bearerToken = bearerToken,
+                                autoSyncOnSave = autoSyncOnSave
+                            )
+                            onTestConnection(currentConfig) { res ->
+                                isTesting = false
+                                testResultIsSuccess = res.isSuccess
+                                testResultMsg = if (res.isSuccess) {
+                                    res.getOrNull() ?: "Success"
+                                } else {
+                                    res.exceptionOrNull()?.message ?: "Failed"
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Emerald400),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(color = Emerald400, modifier = Modifier.size(16.dp))
+                        } else {
+                            Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = stringResource(R.string.btn_test_connection), fontSize = 12.sp)
+                    }
+
+                    testResultMsg?.let { msg ->
+                        Text(
+                            text = msg,
+                            color = if (testResultIsSuccess) Emerald400 else Rose500,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Save Configuration Button
+            Button(
+                onClick = {
+                    val config = SyncConfig(
+                        enabled = enabled,
+                        preset = preset,
+                        endpointUrl = endpointUrl,
+                        bearerToken = bearerToken,
+                        autoSyncOnSave = autoSyncOnSave
+                    )
+                    onSave(config)
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Emerald500),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = stringResource(R.string.btn_save_config),
+                    color = Slate900,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
             }
         }
     }

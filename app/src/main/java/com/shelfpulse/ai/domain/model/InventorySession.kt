@@ -14,7 +14,9 @@ data class InventorySession(
     val barcode: String? = null,
     val productName: String? = null,
     val expectedStock: Int? = null,
-    val unitPrice: Double? = null
+    val unitPrice: Double? = null,
+    val syncStatus: String = "LOCAL_ONLY",
+    val lastSyncedAt: Long? = null
 ) {
     val variance: Int?
         get() = expectedStock?.let { totalCount - it }

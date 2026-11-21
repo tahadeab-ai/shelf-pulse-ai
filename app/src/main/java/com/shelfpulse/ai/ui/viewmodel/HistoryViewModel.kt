@@ -8,6 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shelfpulse.ai.data.export.ExportManager
 import com.shelfpulse.ai.data.repository.InventoryRepository
+import com.shelfpulse.ai.data.sync.HttpSyncConnector
+import com.shelfpulse.ai.data.sync.SyncAuditWorker
+import com.shelfpulse.ai.data.sync.SyncConfig
+import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.domain.model.InventorySession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -86,5 +90,30 @@ class HistoryViewModel(
 
     fun exportAndShareCsv(context: Context, session: InventorySession) {
         exportAndShare(context, session, ExportFormat.CSV)
+    }
+
+    fun triggerSessionSync(context: Context, session: InventorySession) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateSyncStatus(session.id, "QUEUED")
+            SyncAuditWorker.enqueueOneTimeSync(context)
+        }
+    }
+
+    fun testConnection(config: SyncConfig, onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val connector = HttpSyncConnector()
+            val result = connector.testConnection(config)
+            withContext(Dispatchers.Main) {
+                onResult(result)
+            }
+        }
+    }
+
+    fun saveSyncConfig(context: Context, config: SyncConfig) {
+        SyncPreferences(context).saveSyncConfig(config)
+        if (config.enabled) {
+            SyncAuditWorker.enqueuePeriodicSync(context)
+            SyncAuditWorker.enqueueOneTimeSync(context)
+        }
     }
 }

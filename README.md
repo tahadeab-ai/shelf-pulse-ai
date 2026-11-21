@@ -2,9 +2,9 @@
 
 <img src="docs/assets/logo.svg" alt="ShelfPulse AI Logo" width="120" height="120" />
 
-# ShelfPulse AI — v2.0.0 Media Studio
+# ShelfPulse AI — v2.2.0 Enterprise Retail Suite
 
-**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 Tiling, ByteTrack-cpp, and Jetpack Compose.**
+**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 Tiling, ByteTrack-cpp, zxing-cpp Barcode Scanner, Multi-Format Exporter, and Pluggable ERP Sync.**
 
 [![Android Release](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml)
 [![Android CI](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml)
@@ -21,15 +21,24 @@
 
 ## ⚡ The Challenge & Solution
 
-Traditional retail shelf audits require manual tallying or bulky handheld barcode scanners. Barcode scanners fail when items face inward or are tightly packed, while cloud-dependent computer vision apps suffer from latency, privacy risks, and warehouse connectivity blackouts.
+Traditional retail shelf audits require manual tallying or bulky handheld barcode scanners. Barcode scanners fail when items face inward or are tightly packed, while cloud-dependent computer vision apps suffer from high latency, privacy risks, and warehouse connectivity blackouts.
 
-**ShelfPulse AI** brings state-of-the-art dense object detection and multi-object tracking directly into retail workers' pockets:
-- **100% Offline:** No cloud API calls, no subscriptions, zero data transmission outside the device.
-- **Hardware-Accelerated:** Runs **YOLO11 NCNN FP16** with dynamic **CPU (ARM NEON)** and **Vulkan GPU** runtime toggles plus dual-resolution support (**320px Fast Live Scan** @ **29–30 FPS** and **640px HD Snap & Verify** @ **~3.4 FPS** on Snapdragon 855).
+**ShelfPulse AI** brings state-of-the-art dense object detection, multi-object tracking, barcode SKU binding, and enterprise ERP integration directly into retail workers' pockets:
+
+- **100% Offline Edge-AI:** No cloud API calls, zero telemetry leakage, runs completely on-device.
+- **Hardware-Accelerated Detection:** Runs **YOLO11 NCNN FP16** with dynamic **CPU (ARM NEON)** and **Vulkan GPU** toggles plus dual-resolution support (**320px Fast Live Scan** @ **29–30 FPS** and **640px HD Snap & Verify**).
+- **Exact Bounding Box Alignment (v2.0.1):** Native C++ box normalization unpads letterbox borders directly to original image coordinates; paired with pure Kotlin `CoordinateMapper.kt` ensuring zero bounding boxes ever float outside the rendered image.
+- **Pro CV Overlay & Pinch-to-Zoom (v2.0.1):** 3-zone non-overlapping layout (Top HUD, Central Zoomable Viewport, Bottom Actions), crisp 1.5dp corner brackets, live confidence threshold filter slider, and Flash/Torch toggle.
 - **Native SAHI 2x2 Tiling (v2.0.0):** Native C++17 Slicing Aided Hyper Inference splits dense shelf images into overlapping tiles (20% overlap) + 1 global overview pass, boosting SKU recall by **+31.6%** over standard single-pass 640px detection.
-- **Gallery Media Studio (v2.0.0):** Import existing high-res photos or recorded walkthrough video clips directly via Android Photo Picker (`ActivityResultContracts.PickVisualMedia`) with EXIF rotation correction and 2048px memory bounds.
-- **Video Walkthrough Audit (v2.0.0):** Analyzes recorded aisle walkthroughs frame-by-frame (4 FPS sampling) via **ByteTrack-cpp** tracking, accumulating unique item counts without duplicates.
-- **Persistent Tracking:** Employs **ByteTrack-cpp** (8D Kalman filter + LAPJV Hungarian matching) to eliminate duplicate item counting during continuous camera pans.
+- **Offline Barcode Scanner + Open Food Facts (v2.1.0):** Embedded C++17 `zxing-cpp` (EAN-13, EAN-8, UPC-A, UPC-E, Code 128, QR Code) with zero Google Play Services dependency. Includes graceful online enrichment via Open Food Facts API when network is available.
+- **Enterprise Multi-Format Export Suite (v2.1.0):**
+  - **Professional PDF Report:** Native Android `PdfDocument` with bilingual English and Arabic RTL typography.
+  - **Annotated Proof Photo:** High-res JPEG canvas render with drawn bounding boxes, timestamp, and audit metadata banner.
+  - **Excel-Compatible CSV:** UTF-8 BOM encoding for seamless bilingual display in Microsoft Excel.
+  - **Standardized JSON (Schema 2.2):** Full structured audit data for automation pipelines.
+- **Pluggable ERP & Webhook Integrations (v2.2.0):** Native connectors for **Generic Webhooks** (n8n, Zapier, custom POS), **InvenTree REST API** (`/api/stock/count/`), and **ERPNext** (`Stock Reconciliation`).
+- **WorkManager Background Offline Sync Queue (v2.2.0):** Automatic battery-friendly background sync (`SyncAuditWorker`) triggered on network connectivity with exponential backoff and manual retry pills in Audit History.
+- **Video Walkthrough Audit (v2.0.0):** Analyzes recorded aisle walkthroughs frame-by-frame via **ByteTrack-cpp** tracking, accumulating unique item counts without duplicates.
 - **Human-in-the-Loop:** Interactive verification canvas with $+1$ tap-to-add missing items and $-1$ tap-to-exclude false detections.
 - **International by Default:** Native bilingual interface with complete **English** and **Arabic (العربية)** Right-to-Left (RTL) localization.
 
@@ -43,7 +52,7 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
       <td width="25%"><b>Live Scan HUD (30 FPS)</b></td>
       <td width="25%"><b>SAHI 2x2 HD Tiling (75 SKUs)</b></td>
       <td width="25%"><b>Video Aisle Walkthrough</b></td>
-      <td width="25%"><b>Audit History (Room v2)</b></td>
+      <td width="25%"><b>Audit History & ERP Sync</b></td>
     </tr>
     <tr>
       <td><img src="docs/assets/screenshots/live_scan.png" alt="Live Scan Screen" width="220"/></td>
@@ -56,15 +65,101 @@ Traditional retail shelf audits require manual tallying or bulky handheld barcod
 
 ---
 
+## 🔌 Pluggable ERP & Webhook Integrations (v2.2.0)
+
+ShelfPulse AI integrates with any warehouse management system or ERP via `InventorySyncConnector`. Configure endpoints, authorization tokens, and presets in **History & Export -> Settings (⚙️)**:
+
+```mermaid
+flowchart LR
+    App["ShelfPulse AI<br/>Audit Session"] --> WorkMgr["WorkManager<br/>SyncAuditWorker"]
+    WorkMgr --> NetCheck{"Network Connected?"}
+    NetCheck -- "No (Offline)" --> Queue[("Room DB v4<br/>status: QUEUED")]
+    Queue -. "Reconnected" .-> WorkMgr
+    NetCheck -- "Yes" --> Dispatcher{"Connector Preset"}
+    Dispatcher --> Webhook["Generic Webhook<br/>(n8n / Zapier / POS)"]
+    Dispatcher --> InvenTree["InvenTree REST API<br/>(/api/stock/count/)"]
+    Dispatcher --> ERPNext["ERPNext API<br/>(Stock Reconciliation)"]
+```
+
+### Supported Presets & JSON Payloads
+
+#### 1. Generic Webhook (`GENERIC_WEBHOOK`)
+Standardized JSON payload ideal for automation webhooks (n8n, Zapier, Make, Node-RED, or custom POS backends):
+
+```json
+{
+  "event": "inventory.audit.completed",
+  "version": "2.2.0",
+  "timestamp": 1732190400000,
+  "session": {
+    "sessionId": 42,
+    "timestamp": 1732190400000,
+    "totalCount": 24,
+    "operatorNotes": "Shelf A-12 Beverage Row",
+    "mode": "STILL_SAHI",
+    "barcode": "5449000000996",
+    "productName": "Coca-Cola Original 330ml",
+    "expectedStock": 30,
+    "unitPrice": 1.50,
+    "discrepancy": -6
+  },
+  "detections": [
+    {
+      "index": 1,
+      "confidence": 0.892,
+      "box": { "x1": 0.125, "y1": 0.340, "x2": 0.220, "y2": 0.610 },
+      "skuId": "5449000000996"
+    }
+  ]
+}
+```
+
+#### 2. InvenTree REST API (`INVENTREE_REST`)
+Direct integration with [InvenTree](https://inventree.org/) open-source inventory management:
+- Endpoint: `POST https://inventree.yourdomain.com/api/stock/count/`
+- Authorization: `Bearer <token>`
+
+```json
+{
+  "barcode": "5449000000996",
+  "quantity": 24,
+  "notes": "ShelfPulse AI Audit #42 (Mode: STILL_SAHI, Expected: 30, Diff: -6)"
+}
+```
+
+#### 3. ERPNext Stock Reconciliation (`ERPNEXT_STOCK_RECONCILIATION`)
+Direct integration with [ERPNext / Frappe](https://erpnext.com/) stock ledger:
+- Endpoint: `POST https://erpnext.yourdomain.com/api/resource/Stock%20Reconciliation`
+- Authorization: `token <api_key>:<api_secret>`
+
+```json
+{
+  "doctype": "Stock Reconciliation",
+  "purpose": "Stock Reconciliation",
+  "items": [
+    {
+      "item_code": "5449000000996",
+      "qty": 24,
+      "valuation_rate": 1.50
+    }
+  ]
+}
+```
+
+---
+
 ## 📊 Authentic Device Benchmarks
 
-Every metric below was captured directly from a physical Android device (**Samsung Galaxy Note 10 / SM-N970U**, Qualcomm Snapdragon 855 with 1x Kryo 485 @ 2.84 GHz + 3x Kryo 485 @ 2.42 GHz + 4x Kryo 485 @ 1.78 GHz, Adreno 640 GPU) running **ShelfPulse AI v2.0.0 Release APK** via verified ADB logcat telemetry.
+> [!NOTE]
+> **Hardware Benchmark Environment & Re-verification Notice:**
+> The performance metrics below were captured on a physical **Samsung Galaxy Note 10 (SM-N970U)** (Qualcomm Snapdragon 855: 1× Kryo 485 @ 2.84 GHz + 3× Kryo 485 @ 2.42 GHz + 4× Kryo 485 @ 1.78 GHz, Adreno 640 GPU, Android 12) running the **Release APK** via verified ADB logcat telemetry prior to v2.0.1+.
+> For full test protocols and upcoming re-verification steps, see [docs/DEVICE_VERIFICATION_CHECKLIST.md](docs/DEVICE_VERIFICATION_CHECKLIST.md).
 
-### Media Studio v2.0.0: SAHI 2x2 HD vs Single-Pass 640px Comparison
+### Media Studio: SAHI 2x2 HD vs Single-Pass 640px Comparison
 
 Tested on an authentic 1920×1080 dense retail shelf panorama containing tightly clustered products:
 
-| Evaluation Metric | Single-Pass 640px Still Mode | SAHI 2x2 HD Native Tiling (v2.0.0) | Performance / Recall Delta |
+| Evaluation Metric | Single-Pass 640px Still Mode | SAHI 2x2 HD Native Tiling | Performance / Recall Delta |
 | :--- | :--- | :--- | :--- |
 | **Number of Inferences** | 1 full-frame inference | 5 inferences (4 tiles @ 20% overlap + 1 global overview) | Complete multi-scale receptive field |
 | **Raw Candidate Bounding Boxes** | 57 candidates | **1,184 raw detections** | Dense coverage of small occluded items |
@@ -96,32 +191,17 @@ Tested on an authentic 1920×1080 dense retail shelf panorama containing tightly
 - **Single-Shot HD Inference (CPU NEON):** **~85 ms**
 - **Complete Still Capture & Interactive UI Render:** **293.6 – 316.4 ms** (interactive $+1/-1$ tally overlay ready in < 320 ms)
 
-### Architectural Insight: Why CPU NEON Outperforms Adreno 640 on Snapdragon 855
-
-On older Adreno GPUs (such as Adreno 640), Vulkan FP16 execution incurs non-trivial command buffer submission overhead, shader pipeline dispatch latency, and memory synchronization penalties on sequential per-frame vision inference. By contrast, four big Kryo 485 cores pinned via `ncnn::set_cpu_powersave(2)` running tuned **ARM NEON FP16 OpenMP** instructions keep intermediate layer tensors in high-speed L1/L2 caches, eliminating memory traffic and achieving lower end-to-end latency (**~21 ms** CPU vs **~55 ms** GPU at 320px). The app provides explicit segmented controls (`[CPU NEON | GPU Vulkan]` and `[320px Fast | 640px HD]`) allowing real-time benchmarking and resolution switching on any attached device.
-
-### Benchmark Evolution Across Versions
-
-| Metric | Baseline v1.0.0 (Pre-Optimization) | v1.1.1 (Intermediate) | v1.2.2 (Verified On-Device) | Target Threshold | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Live Scan Preprocessing** | > 60 ms (1080p YUV + NV21 copy) | 1.6 – 2.5 ms | **1.3 – 4.5 ms** (640x480 RGBA + kanna_rotate_c4) | < 10 ms | 🚀 Exceeded |
-| **Live Scan Inference Latency** | 125 ms (unpinned 640px) | 68.1 – 110.4 ms (unpinned 640px) | **14.0 – 26.5 ms** (320px pinned Kryo 485) | < 30 ms | 🚀 Exceeded |
-| **Live Scan Total Latency** | 192.3 ms (~5.2 FPS) | 78.7 – 98.2 ms (~10.2 – 13.7 FPS) | **15.9 – 30.9 ms** (**29.3 – 30.2 FPS**) | < 33 ms (30 FPS) | 🏆 Camera Saturation |
-| **Snap & Verify Latency** | ~280 ms | 95 ms (CPU) / 165 ms (GPU) | **~293 ms** (full 640px capture-to-UI tally) | < 350 ms | ⚡ Fast |
-| **Peak Heap Allocations** | Dynamic std::vector reallocations | 0 B (Reusable buffers) | **0 B (Reusable member buffers)** | 0 dynamic realloc | 🛡️ Zero OOM |
-| **Cold Startup Time** | ~450 ms | 380 ms | **~350 ms** | < 1000 ms | ⚡ Instant |
-| **APK Binary Size** | 19.8 MB (unminified) | 17.7 MB | **17.8 MB** (`isMinifyEnabled = true`, R8) | < 25 MB | 🍃 Lightweight |
-
 ---
 
 ## 🏗️ System Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph Capture ["Android Client (Kotlin + Jetpack Compose)"]
         Cam["CameraX Preview & ImageAnalysis<br/>(RGBA_8888 640x480 Keep-Latest)"]
-        HUD["Material 3 HUD Canvas<br/>(Live Bounding Boxes, Stage Breakdown & Backend Toggle)"]
-        DB[("Room SQLite DB<br/>Audit Sessions")]
+        Scanner["zxing-cpp Barcode Scanner<br/>(EAN-13, EAN-8, UPC, Code128, QR)"]
+        HUD["Material 3 HUD Canvas<br/>(Live Bounding Boxes, Stage Breakdown & Toggles)"]
+        Export["Multi-Format Export Suite<br/>(PDF RTL, JPEG Proof, CSV BOM, JSON 2.2)"]
     end
 
     subgraph NativeBridge ["JNI Native Bridge (C++17)"]
@@ -132,17 +212,34 @@ flowchart LR
         Yolo["YOLO11 NCNN FP16<br/>(NEON CPU 4-Thread / Vulkan GPU)"]
         Parser["Dynamic Tensor Parser<br/>([4+C, N] Dynamic Classes)"]
         Tracker["ByteTrack-cpp<br/>(Kalman 8D + LAPJV via Eigen 3.4)"]
+        SAHI["Native SAHI 2x2 Tiling<br/>(Overlapping Slices + Global NMS)"]
+    end
+
+    subgraph DataSync ["Persistence & Enterprise Sync"]
+        DB[("Room SQLite DB v4<br/>Sessions, SKUs, Sync Queue")]
+        SyncMgr["WorkManager SyncAuditWorker<br/>(Network-Aware Backoff)"]
+        ERP["ERP & Webhooks<br/>(Generic, InvenTree, ERPNext)"]
     end
 
     Cam --> DirectBuf
+    Cam --> Scanner
     DirectBuf --> Yolo
     Yolo --> Parser
     Parser --> Tracker
+    Parser --> SAHI
     Tracker --> HUD
+    SAHI --> HUD
     HUD --> DB
+    Scanner --> DB
+    DB --> Export
+    DB --> SyncMgr
+    SyncMgr --> ERP
 ```
 
-For in-depth mathematical derivations of the Kalman Filter state vectors, dynamic class count detection, and zero-copy JNI plane re-construction, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Detailed architectural blueprints, Kalman state derivations, coordinate mapping geometry, and database migrations are documented in:
+- 📘 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Technical specification & data flow
+- 📄 [docs/MODEL_CARD.md](docs/MODEL_CARD.md) — Model card, dataset details, and training pipeline
+- 📋 [docs/DEVICE_VERIFICATION_CHECKLIST.md](docs/DEVICE_VERIFICATION_CHECKLIST.md) — Physical test checklist & validation log
 
 ---
 
@@ -170,20 +267,24 @@ This project strictly enforces clean Git hygiene and zero local binary bloat:
    ```
 2. Trigger the automated GitHub Actions workflow:
    ```bash
-   gh workflow run android-release.yml -f tag_name=v1.0.0
+   gh workflow run android-release.yml -f tag_name=v2.2.0
    ```
 3. GitHub Actions builds the native C++17 library using cached NDK r27, NCNN, opencv-mobile, and Eigen, runs all unit tests, and publishes the signed artifact.
 
 ---
 
-## 🛠️ Tech Stack & Credits
+## 🛠️ Open-Source Stack & Credits
+
+ShelfPulse AI is built on the shoulders of remarkable open-source engineering:
 
 - **Object Detection:** [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics) (Glenn Jocher et al.)
 - **Neural Network Inference:** [Tencent NCNN](https://github.com/Tencent/ncnn) (nihui) with Vulkan GPU acceleration
 - **Computer Vision Utilities:** [opencv-mobile](https://github.com/nihui/opencv-mobile) (nihui)
 - **Multi-Object Tracking:** [ByteTrack](https://github.com/ifzhang/ByteTrack) (Zhang et al.)
 - **Linear Algebra:** [Eigen 3.4.0](https://gitlab.com/libeigen/eigen)
-- **Android Platform:** Kotlin 2.0.21, Jetpack Compose, CameraX, Room SQLite, Material 3
+- **Offline Barcode Scanner:** [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) via `io.github.zxing-cpp:android`
+- **Product Metadata Enrichment:** [Open Food Facts](https://world.openfoodfacts.org/) open database
+- **Android Platform:** Kotlin 2.0.21, Jetpack Compose, CameraX, Room SQLite v4, WorkManager, Material 3
 - **Dataset:** [SKU-110K Dense Object Detection](https://github.com/eg4000/SKU110K_CVPR19) (Goldman et al.)
 
 ---

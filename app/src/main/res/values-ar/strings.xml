@@ -100,6 +100,27 @@
     <string name="csv_export_success">تم تصدير ملف CSV بنجاح</string>
     <string name="csv_share_title">مشاركة تقرير الجرد</string>
 
+    <!-- ERP & Webhook Integrations -->
+    <string name="sync_status_local">محلي</string>
+    <string name="sync_status_queued">قيد الانتظار</string>
+    <string name="sync_status_synced">تمت المزامنة</string>
+    <string name="sync_status_failed">إعادة المحاولة</string>
+    <string name="sheet_integrations_title">تكاملات أنظمة ERP والويب هوك</string>
+    <string name="sheet_integrations_subtitle">الربط مع InvenTree أو ERPNext أو أنظمة Webhook مخصصة</string>
+    <string name="lbl_enable_sync">تفعيل المزامنة السحابية / ERP</string>
+    <string name="lbl_preset">نمط التكامل</string>
+    <string name="preset_generic_webhook">Webhook عام (n8n / Zapier)</string>
+    <string name="preset_inventree">واجهة InvenTree REST (/api/stock/count/)</string>
+    <string name="preset_erpnext">مطابقة مخزون ERPNext</string>
+    <string name="lbl_endpoint_url">رابط نقطة النهاية (Endpoint URL)</string>
+    <string name="hint_endpoint_url">https://your-server.com/api/webhook</string>
+    <string name="lbl_bearer_token">رمز التفويض Bearer (اختياري)</string>
+    <string name="hint_bearer_token">token_abc123...</string>
+    <string name="lbl_auto_sync">مزامنة تلقائية فور حفظ الجلسة</string>
+    <string name="btn_test_connection">اختبار الاتصال</string>
+    <string name="btn_save_config">حفظ الإعدادات</string>
+    <string name="msg_config_saved">تم حفظ إعدادات التكامل بنجاح</string>
+
     <!-- Permissions -->
     <string name="camera_permission_required">يلزم إذن الكاميرا لإجراء جرد الرفوف اللحظي.</string>
     <string name="btn_grant_permission">منح الإذن</string>

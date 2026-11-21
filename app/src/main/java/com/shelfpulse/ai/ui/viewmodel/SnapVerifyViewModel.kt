@@ -203,7 +203,12 @@ class SnapVerifyViewModel(
         }
     }
 
-    fun saveSession(shelfLocation: String, notes: String, onComplete: () -> Unit = {}) {
+    fun saveSession(
+        shelfLocation: String,
+        notes: String,
+        initialSyncStatus: String = "LOCAL_ONLY",
+        onComplete: (Long) -> Unit = {}
+    ) {
         val state = _uiState.value
         val validDetections = state.visibleDetections.filter { !it.isExcluded }
 
@@ -234,7 +239,8 @@ class SnapVerifyViewModel(
                 barcode = state.linkedBarcode,
                 productName = state.linkedProductName,
                 expectedStock = state.linkedExpectedStock,
-                unitPrice = state.linkedUnitPrice
+                unitPrice = state.linkedUnitPrice,
+                syncStatus = initialSyncStatus
             )
 
             val records = validDetections.map { det ->
@@ -253,7 +259,7 @@ class SnapVerifyViewModel(
 
             val sessionId = repository.saveSession(session, records)
             _uiState.update { it.copy(isSaved = true, lastSavedSessionId = sessionId) }
-            onComplete()
+            onComplete(sessionId)
         }
     }
 

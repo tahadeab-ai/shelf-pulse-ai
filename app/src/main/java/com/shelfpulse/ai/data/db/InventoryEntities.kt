@@ -21,7 +21,9 @@ data class InventorySessionEntity(
     val barcode: String? = null,
     val productName: String? = null,
     val expectedStock: Int? = null,
-    val unitPrice: Double? = null
+    val unitPrice: Double? = null,
+    val syncStatus: String = "LOCAL_ONLY",
+    val lastSyncedAt: Long? = null
 )
 
 @Entity(tableName = "product_catalog")
