@@ -460,10 +460,5 @@ std::vector<Detection> ByteTrackWrapper::update(const std::vector<Detection>& de
     }
     return results;
 }
-        auto tlbr = tr.tlbr();
-        results.emplace_back(tlbr[0], tlbr[1], tlbr[2], tlbr[3], tr.score, tr.class_id, tr.track_id);
-    }
-    return results;
-}
 
 } // namespace shelfpulse
