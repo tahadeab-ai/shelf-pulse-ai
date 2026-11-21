@@ -30,6 +30,13 @@ class ShelfPulseNativeEngine {
         enableTracking: Boolean
     ): FloatArray
 
+    private external fun nativeDetectBitmapTiled(
+        bitmap: Bitmap,
+        confThresh: Float,
+        nmsThresh: Float,
+        overlapRatio: Float
+    ): FloatArray
+
     private external fun nativeDetectRgba(
         rgbaBuffer: ByteBuffer,
         width: Int,
@@ -85,6 +92,16 @@ class ShelfPulseNativeEngine {
         enableTracking: Boolean = false
     ): Pair<List<DetectionResult>, Telemetry> {
         val rawArray = nativeDetectBitmap(bitmap, confThresh, nmsThresh, enableTracking)
+        return parseRawOutput(rawArray)
+    }
+
+    fun detectBitmapTiled(
+        bitmap: Bitmap,
+        confThresh: Float = 0.40f,
+        nmsThresh: Float = 0.45f,
+        overlapRatio: Float = 0.20f
+    ): Pair<List<DetectionResult>, Telemetry> {
+        val rawArray = nativeDetectBitmapTiled(bitmap, confThresh, nmsThresh, overlapRatio)
         return parseRawOutput(rawArray)
     }
 
@@ -160,11 +177,22 @@ class ShelfPulseNativeEngine {
         val totalMs = rawArray[1]
         val isGpu = rawArray[2] > 0.5f
 
+        val hasExtendedV2Timings = rawArray.size >= 10
         val hasExtendedTimings = rawArray.size >= 6
+
         val prepMs = if (hasExtendedTimings) rawArray[3] else 0f
         val inferMs = if (hasExtendedTimings) rawArray[4] else totalMs
         val trkMs = if (hasExtendedTimings) rawArray[5] else 0f
-        val detHeaderSize = if (hasExtendedTimings) 6 else 3
+        val nmsMs = if (hasExtendedV2Timings) rawArray[6] else 0f
+        val tileCount = if (hasExtendedV2Timings) rawArray[7].toInt() else 1
+        val rawBoxCount = if (hasExtendedV2Timings) rawArray[8].toInt() else numDets
+        val mergedBoxCount = if (hasExtendedV2Timings) rawArray[9].toInt() else numDets
+
+        val detHeaderSize = when {
+            hasExtendedV2Timings -> 10
+            hasExtendedTimings -> 6
+            else -> 3
+        }
 
         val fps = if (totalMs > 0f) (1000f / totalMs).coerceAtMost(120f) else 0f
         val telemetry = Telemetry(
@@ -172,8 +200,12 @@ class ShelfPulseNativeEngine {
             inferenceLatencyMs = inferMs,
             preprocessMs = prepMs,
             trackMs = trkMs,
+            nmsMs = nmsMs,
             totalLatencyMs = totalMs,
-            isVulkanActive = isGpu
+            isVulkanActive = isGpu,
+            tileCount = tileCount,
+            rawBoxCount = rawBoxCount,
+            mergedBoxCount = mergedBoxCount
         )
 
         val detections = ArrayList<DetectionResult>(numDets)

@@ -31,4 +31,18 @@ class ViewModelStateTest {
         assertThat(defaultState.isProcessing).isFalse()
         assertThat(defaultState.capturedBitmap).isNull()
     }
+
+    @Test
+    fun snapVerifyUiState_defaultScanModeIsSingle640() {
+        val state = SnapVerifyUiState()
+        assertThat(state.scanMode).isEqualTo(com.shelfpulse.ai.ui.viewmodel.ScanMode.SINGLE_640)
+    }
+
+    @Test
+    fun videoAuditUiState_defaults_areIdle() {
+        val state = com.shelfpulse.ai.ui.viewmodel.VideoAuditUiState()
+        assertThat(state.isAuditing).isFalse()
+        assertThat(state.isComplete).isFalse()
+        assertThat(state.uniqueTrackedCount).isEqualTo(0)
+    }
 }

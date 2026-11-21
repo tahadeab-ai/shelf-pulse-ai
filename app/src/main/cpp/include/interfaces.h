@@ -36,8 +36,20 @@ struct StageTimings {
     float infer_ms;
     float track_ms;
     float total_ms;
+    float nms_ms;
+    int tile_count;
+    int raw_box_count;
+    int merged_box_count;
 
-    StageTimings() : preprocess_ms(0.0f), infer_ms(0.0f), track_ms(0.0f), total_ms(0.0f) {}
+    StageTimings()
+        : preprocess_ms(0.0f),
+          infer_ms(0.0f),
+          track_ms(0.0f),
+          total_ms(0.0f),
+          nms_ms(0.0f),
+          tile_count(1),
+          raw_box_count(0),
+          merged_box_count(0) {}
 };
 
 // Abstract Detector Interface
@@ -46,6 +58,7 @@ public:
     virtual ~IDetector() = default;
     virtual bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) = 0;
     virtual std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) = 0;
+    virtual std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, StageTimings* timings = nullptr) = 0;
     virtual bool is_gpu_active() const = 0;
     virtual bool set_backend(bool use_gpu) = 0;
 };

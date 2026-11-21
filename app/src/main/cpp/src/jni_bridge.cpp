@@ -38,17 +38,21 @@ static jfloatArray pack_detections_to_jfloat_array(
     // [3]: preprocess_ms
     // [4]: infer_ms
     // [5]: track_ms
+    // [6]: nms_ms
+    // [7]: tile_count
+    // [8]: raw_box_count
+    // [9]: merged_box_count
     // Then for each of N detections (7 floats per detection):
-    // [6 + i*7 + 0]: x1
-    // [6 + i*7 + 1]: y1
-    // [6 + i*7 + 2]: x2
-    // [6 + i*7 + 3]: y2
-    // [6 + i*7 + 4]: score
-    // [6 + i*7 + 5]: class_id
-    // [6 + i*7 + 6]: track_id
+    // [10 + i*7 + 0]: x1
+    // [10 + i*7 + 1]: y1
+    // [10 + i*7 + 2]: x2
+    // [10 + i*7 + 3]: y2
+    // [10 + i*7 + 4]: score
+    // [10 + i*7 + 5]: class_id
+    // [10 + i*7 + 6]: track_id
 
     size_t num_dets = detections.size();
-    size_t total_floats = 6 + num_dets * 7;
+    size_t total_floats = 10 + num_dets * 7;
 
     s_jfloat_buffer.resize(total_floats);
     s_jfloat_buffer[0] = static_cast<float>(num_dets);
@@ -57,9 +61,13 @@ static jfloatArray pack_detections_to_jfloat_array(
     s_jfloat_buffer[3] = timings.preprocess_ms;
     s_jfloat_buffer[4] = timings.infer_ms;
     s_jfloat_buffer[5] = timings.track_ms;
+    s_jfloat_buffer[6] = timings.nms_ms;
+    s_jfloat_buffer[7] = static_cast<float>(timings.tile_count);
+    s_jfloat_buffer[8] = static_cast<float>(timings.raw_box_count);
+    s_jfloat_buffer[9] = static_cast<float>(timings.merged_box_count);
 
     for (size_t i = 0; i < num_dets; i++) {
-        size_t offset = 6 + i * 7;
+        size_t offset = 10 + i * 7;
         s_jfloat_buffer[offset + 0] = detections[i].x1;
         s_jfloat_buffer[offset + 1] = detections[i].y1;
         s_jfloat_buffer[offset + 2] = detections[i].x2;
@@ -268,6 +276,56 @@ Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmap(
         auto trk_end = std::chrono::high_resolution_clock::now();
         timings.track_ms = std::chrono::duration<float, std::milli>(trk_end - trk_start).count();
     }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    timings.total_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
+
+    AndroidBitmap_unlockPixels(env, bitmap);
+
+    return pack_detections_to_jfloat_array(env, detections, timings, g_detector->is_gpu_active());
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_shelfpulse_ai_nativebridge_ShelfPulseNativeEngine_nativeDetectBitmapTiled(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jobject bitmap,
+    jfloat conf_thresh,
+    jfloat nms_thresh,
+    jfloat overlap_ratio) {
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    std::lock_guard<std::mutex> lock(g_engine_mutex);
+    shelfpulse::StageTimings timings;
+    if (!g_detector) {
+        LOGE("nativeDetectBitmapTiled called before nativeInit()");
+        return pack_detections_to_jfloat_array(env, {}, timings, false);
+    }
+
+    AndroidBitmapInfo info;
+    if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
+        LOGE("Failed to get AndroidBitmapInfo in nativeDetectBitmapTiled");
+        return pack_detections_to_jfloat_array(env, {}, timings, false);
+    }
+
+    void* pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &pixels) < 0) {
+        LOGE("Failed to lock bitmap pixels in nativeDetectBitmapTiled");
+        return pack_detections_to_jfloat_array(env, {}, timings, false);
+    }
+
+    shelfpulse::ImageFrame frame;
+    frame.data = static_cast<const uint8_t*>(pixels);
+    frame.width = static_cast<int>(info.width);
+    frame.height = static_cast<int>(info.height);
+    frame.channels = 4; // RGBA_8888
+    frame.step = static_cast<int>(info.stride);
+    frame.rotation_degrees = 0;
+
+    std::vector<shelfpulse::Detection> detections = g_detector->detect_tiled(
+        frame, conf_thresh, nms_thresh, overlap_ratio, &timings
+    );
 
     auto end_time = std::chrono::high_resolution_clock::now();
     timings.total_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();

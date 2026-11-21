@@ -64,13 +64,24 @@ fun TelemetryChip(
                 )
 
                 // Primary display (Smoothed Wall-clock FPS + Total Wall Latency)
-                Text(
-                    text = String.format(
+                val primaryText = if (telemetry.tileCount > 1) {
+                    String.format(
+                        java.util.Locale.US,
+                        "SAHI 2x2 (%d tiles) | %.1f ms",
+                        telemetry.tileCount,
+                        displayLatency
+                    )
+                } else {
+                    String.format(
                         java.util.Locale.US,
                         "%.1f FPS | %.1f ms",
                         telemetry.fps,
                         displayLatency
-                    ),
+                    )
+                }
+
+                Text(
+                    text = primaryText,
                     color = Slate100,
                     fontSize = 12.sp
                 )
@@ -92,13 +103,27 @@ fun TelemetryChip(
                 )
             }
 
-            // Detailed Stage breakdown: Pre | Inf | Trk
+            // Detailed Stage breakdown: Pre | Inf | Trk / NMS
             AnimatedVisibility(visible = expanded) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
+                    if (telemetry.tileCount > 1) {
+                        Text(
+                            text = String.format(
+                                java.util.Locale.US,
+                                "Raw: %d -> Merged: %d | NMS: %.1fms",
+                                telemetry.rawBoxCount,
+                                telemetry.mergedBoxCount,
+                                telemetry.nmsMs
+                            ),
+                            color = Emerald400,
+                            fontSize = 10.sp
+                        )
+                    }
+
                     Text(
                         text = String.format(
                             java.util.Locale.US,

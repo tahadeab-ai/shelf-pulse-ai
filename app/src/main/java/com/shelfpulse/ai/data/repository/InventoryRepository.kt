@@ -18,7 +18,11 @@ class InventoryRepository(private val dao: InventoryDao) {
                 shelfLocation = entity.shelfLocation,
                 totalCount = entity.totalCount,
                 operatorNotes = entity.operatorNotes,
-                mode = entity.mode
+                mode = entity.mode,
+                rawBoxCount = entity.rawBoxCount,
+                mergedBoxCount = entity.mergedBoxCount,
+                tileCount = entity.tileCount,
+                durationMs = entity.durationMs
             )
         }
     }
@@ -30,7 +34,11 @@ class InventoryRepository(private val dao: InventoryDao) {
             shelfLocation = session.shelfLocation,
             totalCount = session.totalCount,
             operatorNotes = session.operatorNotes,
-            mode = session.mode
+            mode = session.mode,
+            rawBoxCount = session.rawBoxCount,
+            mergedBoxCount = session.mergedBoxCount,
+            tileCount = session.tileCount,
+            durationMs = session.durationMs
         )
 
         val recordEntities = records.map { r ->

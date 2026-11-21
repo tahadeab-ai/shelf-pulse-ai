@@ -17,6 +17,7 @@ public:
 
     bool load_model(const std::string& param_path, const std::string& bin_path, bool use_gpu) override;
     std::vector<Detection> detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size = -1, StageTimings* timings = nullptr) override;
+    std::vector<Detection> detect_tiled(const ImageFrame& frame, float conf_thresh, float nms_thresh, float overlap_ratio = 0.20f, StageTimings* timings = nullptr) override;
     bool is_gpu_active() const override { return has_gpu_; }
     bool set_backend(bool use_gpu) override;
 
@@ -33,6 +34,17 @@ private:
     };
 
     void preprocess_letterbox(const ncnn::Mat& in, ncnn::Mat& out, LetterboxInfo& info, int target_size);
+    void decode_detections(
+        const ncnn::Mat& out0,
+        const LetterboxInfo& info,
+        int offset_x,
+        int offset_y,
+        int max_w,
+        int max_h,
+        float conf_thresh,
+        int active_target_size,
+        std::vector<Detection>& candidates
+    );
     void nms_sorted_bboxes(const std::vector<Detection>& bboxes, std::vector<int>& picked, float nms_threshold);
 
     ncnn::Net net_;

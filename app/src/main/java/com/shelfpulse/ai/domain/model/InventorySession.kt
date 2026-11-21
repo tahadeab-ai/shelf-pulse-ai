@@ -6,7 +6,11 @@ data class InventorySession(
     val shelfLocation: String,
     val totalCount: Int,
     val operatorNotes: String = "",
-    val mode: String = "SNAP_AND_VERIFY"
+    val mode: String = "SNAP_AND_VERIFY",
+    val rawBoxCount: Int = 0,
+    val mergedBoxCount: Int = 0,
+    val tileCount: Int = 0,
+    val durationMs: Long = 0L
 )
 
 data class ShelfScanRecord(

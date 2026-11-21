@@ -2,13 +2,17 @@
     <string name="app_name">ShelfPulse AI</string>
     <string name="tab_snap_verify">Snap &amp; Verify</string>
     <string name="tab_live_scan">Live Scan</string>
+    <string name="tab_video_audit">Video Audit</string>
     <string name="tab_history">History</string>
 
     <!-- Snap & Verify -->
     <string name="snap_title">Snap &amp; Verify Mode</string>
     <string name="btn_capture">Capture &amp; Count</string>
+    <string name="btn_import_photo">Import Photo</string>
     <string name="btn_retake">Retake</string>
     <string name="btn_save_session">Save Session</string>
+    <string name="mode_single_640">Single 640px</string>
+    <string name="mode_sahi_2x2">SAHI 2x2 HD</string>
     <string name="txt_products_detected">Products Detected</string>
     <string name="hint_tap_to_add">Tap product to add manual count (+1)</string>
     <string name="hint_tap_box_to_remove">Tap bounding box to toggle/remove (-1)</string>
@@ -19,6 +23,17 @@
     <string name="hint_notes">e.g., Beverage stock replenished</string>
     <string name="btn_save">Save</string>
     <string name="btn_cancel">Cancel</string>
+
+    <!-- Video Audit (Aisle Walkthrough) -->
+    <string name="video_audit_title">Aisle Walkthrough Video Audit</string>
+    <string name="btn_import_video">Import Video</string>
+    <string name="btn_start_audit">Start Audit</string>
+    <string name="btn_cancel_audit">Cancel Audit</string>
+    <string name="txt_unique_products">Unique Products Tracked</string>
+    <string name="txt_video_ready">Video Ready for Audit</string>
+    <string name="txt_video_duration">Duration: %1$.1fs (%2$d frames)</string>
+    <string name="txt_audit_complete">Video Audit Completed</string>
+    <string name="txt_select_video_prompt">Import an aisle walkthrough video clip from gallery to audit shelf inventory.</string>
 
     <!-- Live Scan -->
     <string name="live_scan_title">Real-Time Live Scan</string>

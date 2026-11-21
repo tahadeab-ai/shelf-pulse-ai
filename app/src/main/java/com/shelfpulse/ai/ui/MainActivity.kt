@@ -35,10 +35,12 @@ import com.shelfpulse.ai.ui.theme.Slate900
 import com.shelfpulse.ai.ui.viewmodel.HistoryViewModel
 import com.shelfpulse.ai.ui.viewmodel.LiveScanViewModel
 import com.shelfpulse.ai.ui.viewmodel.SnapVerifyViewModel
+import com.shelfpulse.ai.ui.viewmodel.VideoAuditViewModel
 
 enum class NavigationTab(val titleRes: Int, val icon: ImageVector) {
     SNAP_VERIFY(R.string.tab_snap_verify, Icons.Default.CameraAlt),
     LIVE_SCAN(R.string.tab_live_scan, Icons.Default.Videocam),
+    VIDEO_AUDIT(R.string.tab_video_audit, Icons.Default.VideoLibrary),
     HISTORY(R.string.tab_history, Icons.Default.History)
 }
 
@@ -106,6 +108,9 @@ class MainActivity : ComponentActivity() {
                         val liveViewModel = remember {
                             LiveScanViewModel(app.nativeEngine, app.repository)
                         }
+                        val videoAuditViewModel = remember {
+                            VideoAuditViewModel(app.nativeEngine, app.repository)
+                        }
                         val historyViewModel = remember {
                             HistoryViewModel(app.repository)
                         }
@@ -140,6 +145,7 @@ class MainActivity : ComponentActivity() {
                                 when (selectedTab) {
                                     NavigationTab.SNAP_VERIFY -> SnapVerifyScreen(snapViewModel)
                                     NavigationTab.LIVE_SCAN -> LiveScanScreen(liveViewModel)
+                                    NavigationTab.VIDEO_AUDIT -> VideoAuditScreen(videoAuditViewModel)
                                     NavigationTab.HISTORY -> HistoryScreen(historyViewModel)
                                 }
                             }

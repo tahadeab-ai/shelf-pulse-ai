@@ -186,6 +186,190 @@ void Yolo11Ncnn::nms_sorted_bboxes(const std::vector<Detection>& bboxes, std::ve
     }
 }
 
+void Yolo11Ncnn::decode_detections(
+    const ncnn::Mat& out0,
+    const LetterboxInfo& info,
+    int offset_x,
+    int offset_y,
+    int max_w,
+    int max_h,
+    float conf_thresh,
+    int active_target_size,
+    std::vector<Detection>& candidates) {
+
+    // Check if raw dynamic multi-stride tensor from PNNX export: [N, 64 + C]
+    // where w = 64 bbox reg + C class scores (65 for SKU-110K 1-class), h = N anchors (2100 or 8400)
+    if (out0.dims == 2 && out0.w >= 65) {
+        const int reg_max_1 = 16;
+        const int num_class = out0.w - reg_max_1 * 4;
+        const int strides[3] = {8, 16, 32};
+
+        candidates.reserve(candidates.size() + out0.h / 4);
+
+        int pred_row_offset = 0;
+        for (int stride : strides) {
+            int num_grid_x = active_target_size / stride;
+            int num_grid_y = active_target_size / stride;
+            int num_grid = num_grid_x * num_grid_y;
+
+            if (pred_row_offset + num_grid > out0.h) {
+                LOGW("Grid overflow in stride %d: offset %d + grid %d > total %d",
+                     stride, pred_row_offset, num_grid, out0.h);
+                break;
+            }
+
+            for (int y = 0; y < num_grid_y; y++) {
+                for (int x = 0; x < num_grid_x; x++) {
+                    const float* row_ptr = out0.row(pred_row_offset + y * num_grid_x + x);
+
+                    // Find label with max score
+                    int best_label = 0;
+                    float max_score = -1e9f;
+                    for (int k = 0; k < num_class; k++) {
+                        float s = row_ptr[reg_max_1 * 4 + k];
+                        if (s > max_score) {
+                            max_score = s;
+                            best_label = k;
+                        }
+                    }
+
+                    float score = sigmoid(max_score);
+                    if (score < conf_thresh) continue;
+
+                    // Decode DFL bboxes: 4 sides * 16 bins
+                    float pred_ltrb[4];
+                    float sm_buf[16];
+                    for (int k = 0; k < 4; k++) {
+                        softmax16(row_ptr + k * 16, sm_buf);
+                        float dis = 0.0f;
+                        for (int l = 0; l < 16; l++) {
+                            dis += l * sm_buf[l];
+                        }
+                        pred_ltrb[k] = dis * stride;
+                    }
+
+                    float pb_cx = (x + 0.5f) * stride;
+                    float pb_cy = (y + 0.5f) * stride;
+
+                    float x0 = pb_cx - pred_ltrb[0];
+                    float y0 = pb_cy - pred_ltrb[1];
+                    float x1 = pb_cx + pred_ltrb[2];
+                    float y1 = pb_cy + pred_ltrb[3];
+
+                    // Reverse letterbox transformation to frame coordinates + apply tile offset
+                    float orig_x1 = (x0 - info.pad_w) / info.scale + static_cast<float>(offset_x);
+                    float orig_y1 = (y0 - info.pad_h) / info.scale + static_cast<float>(offset_y);
+                    float orig_x2 = (x1 - info.pad_w) / info.scale + static_cast<float>(offset_x);
+                    float orig_y2 = (y1 - info.pad_h) / info.scale + static_cast<float>(offset_y);
+
+                    orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(max_w));
+                    orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(max_h));
+                    orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(max_w));
+                    orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(max_h));
+
+                    if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
+
+                    candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, score, best_label, -1);
+                }
+            }
+            pred_row_offset += num_grid;
+        }
+    } else {
+        // Fallback for static/already-decoded models ([4 + C, N] or [N, 4 + C])
+        int num_anchors = 0;
+        int num_classes = 0;
+        bool transpose_layout = false; // true if [4 + C, N]
+
+        if (out0.dims == 2) {
+            if (out0.w > out0.h) {
+                num_anchors = out0.w;
+                num_classes = out0.h - 4;
+                transpose_layout = true;
+            } else {
+                num_anchors = out0.h;
+                num_classes = out0.w - 4;
+                transpose_layout = false;
+            }
+        } else if (out0.dims == 3) {
+            if (out0.h > out0.d) {
+                num_anchors = out0.h;
+                num_classes = out0.d - 4;
+                transpose_layout = false;
+            } else {
+                num_anchors = out0.d;
+                num_classes = out0.h - 4;
+                transpose_layout = true;
+            }
+        } else {
+            LOGE("Unexpected out0 dimension count: %d", out0.dims);
+            return;
+        }
+
+        if (num_classes <= 0 || num_anchors <= 0) {
+            LOGE("Invalid tensor shape parsed: num_classes=%d, num_anchors=%d", num_classes, num_anchors);
+            return;
+        }
+
+        candidates.reserve(candidates.size() + num_anchors / 4);
+
+        for (int i = 0; i < num_anchors; i++) {
+            float cx, cy, w, h;
+            float max_score = 0.0f;
+            int best_class = 0;
+
+            if (transpose_layout) {
+                cx = out0.row(0)[i];
+                cy = out0.row(1)[i];
+                w  = out0.row(2)[i];
+                h  = out0.row(3)[i];
+
+                for (int c = 0; c < num_classes; c++) {
+                    float score = out0.row(4 + c)[i];
+                    if (score > max_score) {
+                        max_score = score;
+                        best_class = c;
+                    }
+                }
+            } else {
+                const float* row_ptr = out0.row(i);
+                cx = row_ptr[0];
+                cy = row_ptr[1];
+                w  = row_ptr[2];
+                h  = row_ptr[3];
+
+                for (int c = 0; c < num_classes; c++) {
+                    float score = row_ptr[4 + c];
+                    if (score > max_score) {
+                        max_score = score;
+                        best_class = c;
+                    }
+                }
+            }
+
+            if (max_score < conf_thresh) continue;
+
+            float x1 = cx - w * 0.5f;
+            float y1 = cy - h * 0.5f;
+            float x2 = cx + w * 0.5f;
+            float y2 = cy + h * 0.5f;
+
+            float orig_x1 = (x1 - info.pad_w) / info.scale + static_cast<float>(offset_x);
+            float orig_y1 = (y1 - info.pad_h) / info.scale + static_cast<float>(offset_y);
+            float orig_x2 = (x2 - info.pad_w) / info.scale + static_cast<float>(offset_x);
+            float orig_y2 = (y2 - info.pad_h) / info.scale + static_cast<float>(offset_y);
+
+            orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(max_w));
+            orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(max_h));
+            orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(max_w));
+            orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(max_h));
+
+            if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
+
+            candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
+        }
+    }
+}
+
 std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_thresh, float nms_thresh, int target_size, StageTimings* timings) {
     auto prep_start = std::chrono::high_resolution_clock::now();
     std::lock_guard<std::mutex> lock(inference_mutex_);
@@ -239,187 +423,22 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
     }
 
     std::vector<Detection> candidates;
-
-    // Check if raw dynamic multi-stride tensor from PNNX export: [N, 64 + C]
-    // where w = 64 bbox reg + C class scores (65 for SKU-110K 1-class), h = N anchors (2100 or 8400)
-    if (out0.dims == 2 && out0.w >= 65) {
-        const int reg_max_1 = 16;
-        const int num_class = out0.w - reg_max_1 * 4;
-        const int strides[3] = {8, 16, 32};
-
-        candidates.reserve(out0.h / 4);
-
-        int pred_row_offset = 0;
-        for (int stride : strides) {
-            int num_grid_x = active_target_size / stride;
-            int num_grid_y = active_target_size / stride;
-            int num_grid = num_grid_x * num_grid_y;
-
-            if (pred_row_offset + num_grid > out0.h) {
-                LOGW("Grid overflow in stride %d: offset %d + grid %d > total %d",
-                     stride, pred_row_offset, num_grid, out0.h);
-                break;
-            }
-
-            for (int y = 0; y < num_grid_y; y++) {
-                for (int x = 0; x < num_grid_x; x++) {
-                    const float* row_ptr = out0.row(pred_row_offset + y * num_grid_x + x);
-
-                    // Find label with max score
-                    int best_label = 0;
-                    float max_score = -1e9f;
-                    for (int k = 0; k < num_class; k++) {
-                        float s = row_ptr[reg_max_1 * 4 + k];
-                        if (s > max_score) {
-                            max_score = s;
-                            best_label = k;
-                        }
-                    }
-
-                    float score = sigmoid(max_score);
-                    if (score < conf_thresh) continue;
-
-                    // Decode DFL bboxes: 4 sides * 16 bins
-                    float pred_ltrb[4];
-                    float sm_buf[16];
-                    for (int k = 0; k < 4; k++) {
-                        softmax16(row_ptr + k * 16, sm_buf);
-                        float dis = 0.0f;
-                        for (int l = 0; l < 16; l++) {
-                            dis += l * sm_buf[l];
-                        }
-                        pred_ltrb[k] = dis * stride;
-                    }
-
-                    float pb_cx = (x + 0.5f) * stride;
-                    float pb_cy = (y + 0.5f) * stride;
-
-                    float x0 = pb_cx - pred_ltrb[0];
-                    float y0 = pb_cy - pred_ltrb[1];
-                    float x1 = pb_cx + pred_ltrb[2];
-                    float y1 = pb_cy + pred_ltrb[3];
-
-                    // Reverse letterbox transformation to original frame coordinates
-                    float orig_x1 = (x0 - info.pad_w) / info.scale;
-                    float orig_y1 = (y0 - info.pad_h) / info.scale;
-                    float orig_x2 = (x1 - info.pad_w) / info.scale;
-                    float orig_y2 = (y1 - info.pad_h) / info.scale;
-
-                    orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(frame.width));
-                    orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(frame.height));
-                    orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(frame.width));
-                    orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(frame.height));
-
-                    if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
-
-                    candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, score, best_label, -1);
-                }
-            }
-            pred_row_offset += num_grid;
-        }
-    } else {
-        // Fallback for static/already-decoded models ([4 + C, N] or [N, 4 + C])
-        int num_anchors = 0;
-        int num_classes = 0;
-        bool transpose_layout = false; // true if [4 + C, N]
-
-        if (out0.dims == 2) {
-            if (out0.w > out0.h) {
-                num_anchors = out0.w;
-                num_classes = out0.h - 4;
-                transpose_layout = true;
-            } else {
-                num_anchors = out0.h;
-                num_classes = out0.w - 4;
-                transpose_layout = false;
-            }
-        } else if (out0.dims == 3) {
-            if (out0.h > out0.d) {
-                num_anchors = out0.h;
-                num_classes = out0.d - 4;
-                transpose_layout = false;
-            } else {
-                num_anchors = out0.d;
-                num_classes = out0.h - 4;
-                transpose_layout = true;
-            }
-        } else {
-            LOGE("Unexpected out0 dimension count: %d", out0.dims);
-            return {};
-        }
-
-        if (num_classes <= 0 || num_anchors <= 0) {
-            LOGE("Invalid tensor shape parsed: num_classes=%d, num_anchors=%d", num_classes, num_anchors);
-            return {};
-        }
-
-        candidates.reserve(num_anchors / 4);
-
-        for (int i = 0; i < num_anchors; i++) {
-            float cx, cy, w, h;
-            float max_score = 0.0f;
-            int best_class = 0;
-
-            if (transpose_layout) {
-                cx = out0.row(0)[i];
-                cy = out0.row(1)[i];
-                w  = out0.row(2)[i];
-                h  = out0.row(3)[i];
-
-                for (int c = 0; c < num_classes; c++) {
-                    float score = out0.row(4 + c)[i];
-                    if (score > max_score) {
-                        max_score = score;
-                        best_class = c;
-                    }
-                }
-            } else {
-                const float* row_ptr = out0.row(i);
-                cx = row_ptr[0];
-                cy = row_ptr[1];
-                w  = row_ptr[2];
-                h  = row_ptr[3];
-
-                for (int c = 0; c < num_classes; c++) {
-                    float score = row_ptr[4 + c];
-                    if (score > max_score) {
-                        max_score = score;
-                        best_class = c;
-                    }
-                }
-            }
-
-            if (max_score < conf_thresh) continue;
-
-            float x1 = cx - w * 0.5f;
-            float y1 = cy - h * 0.5f;
-            float x2 = cx + w * 0.5f;
-            float y2 = cy + h * 0.5f;
-
-            float orig_x1 = (x1 - info.pad_w) / info.scale;
-            float orig_y1 = (y1 - info.pad_h) / info.scale;
-            float orig_x2 = (x2 - info.pad_w) / info.scale;
-            float orig_y2 = (y2 - info.pad_h) / info.scale;
-
-            orig_x1 = std::clamp(orig_x1, 0.0f, static_cast<float>(frame.width));
-            orig_y1 = std::clamp(orig_y1, 0.0f, static_cast<float>(frame.height));
-            orig_x2 = std::clamp(orig_x2, 0.0f, static_cast<float>(frame.width));
-            orig_y2 = std::clamp(orig_y2, 0.0f, static_cast<float>(frame.height));
-
-            if (orig_x2 - orig_x1 < 2.0f || orig_y2 - orig_y1 < 2.0f) continue;
-
-            candidates.emplace_back(orig_x1, orig_y1, orig_x2, orig_y2, max_score, best_class, -1);
-        }
-    }
+    decode_detections(out0, info, 0, 0, frame.width, frame.height, conf_thresh, active_target_size, candidates);
 
     auto inf_end = std::chrono::high_resolution_clock::now();
     if (timings) {
         timings->infer_ms = std::chrono::duration<float, std::milli>(inf_end - inf_start).count();
+        timings->tile_count = 1;
+        timings->raw_box_count = static_cast<int>(candidates.size());
     }
 
-    if (candidates.empty()) return {};
+    if (candidates.empty()) {
+        if (timings) timings->merged_box_count = 0;
+        return {};
+    }
 
     // Sort descending by score for NMS
+    auto nms_start = std::chrono::high_resolution_clock::now();
     std::sort(candidates.begin(), candidates.end(), [](const Detection& a, const Detection& b) {
         return a.score > b.score;
     });
@@ -432,6 +451,149 @@ std::vector<Detection> Yolo11Ncnn::detect(const ImageFrame& frame, float conf_th
     for (int idx : picked) {
         results.push_back(candidates[idx]);
     }
+    auto nms_end = std::chrono::high_resolution_clock::now();
+
+    if (timings) {
+        timings->nms_ms = std::chrono::duration<float, std::milli>(nms_end - nms_start).count();
+        timings->merged_box_count = static_cast<int>(results.size());
+    }
+
+    return results;
+}
+
+std::vector<Detection> Yolo11Ncnn::detect_tiled(
+    const ImageFrame& frame,
+    float conf_thresh,
+    float nms_thresh,
+    float overlap_ratio,
+    StageTimings* timings) {
+
+    auto total_start = std::chrono::high_resolution_clock::now();
+    std::lock_guard<std::mutex> lock(inference_mutex_);
+    if (!is_loaded_) {
+        LOGE("Cannot detect_tiled: model is not loaded.");
+        return {};
+    }
+
+    ncnn::set_cpu_powersave(2);
+
+    int W = frame.width;
+    int H = frame.height;
+    if (W <= 0 || H <= 0) return {};
+
+    auto prep_start = std::chrono::high_resolution_clock::now();
+
+    // Convert raw frame to ncnn::Mat RGB with explicit row stride
+    ncnn::Mat in_rgb;
+    int step_bytes = (frame.step > 0) ? frame.step : (frame.width * frame.channels);
+    if (frame.channels == 4) {
+        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGBA2RGB, frame.width, frame.height, step_bytes);
+    } else if (frame.channels == 3) {
+        in_rgb = ncnn::Mat::from_pixels(frame.data, ncnn::Mat::PIXEL_RGB, frame.width, frame.height, step_bytes);
+    } else {
+        LOGE("Unsupported frame channel count: %d", frame.channels);
+        return {};
+    }
+
+    // Compute 2x2 overlapping tiles with overlap_ratio (default 0.20 = 20%)
+    float overlap = std::clamp(overlap_ratio, 0.05f, 0.50f);
+    int tile_w = std::min(W, static_cast<int>(std::round(W * (1.0f + overlap) / 2.0f)));
+    int tile_h = std::min(H, static_cast<int>(std::round(H * (1.0f + overlap) / 2.0f)));
+
+    struct TileRect {
+        int x;
+        int y;
+        int w;
+        int h;
+    };
+
+    std::vector<TileRect> tiles;
+    tiles.reserve(5);
+    // 4 Corner / Quadrant tiles
+    tiles.push_back({0, 0, tile_w, tile_h});
+    tiles.push_back({std::max(0, W - tile_w), 0, tile_w, tile_h});
+    tiles.push_back({0, std::max(0, H - tile_h), tile_w, tile_h});
+    tiles.push_back({std::max(0, W - tile_w), std::max(0, H - tile_h), tile_w, tile_h});
+    // 5th pass: Global overview pass (full frame)
+    tiles.push_back({0, 0, W, H});
+
+    auto prep_end = std::chrono::high_resolution_clock::now();
+    float total_prep_ms = std::chrono::duration<float, std::milli>(prep_end - prep_start).count();
+    float total_infer_ms = 0.0f;
+
+    std::vector<Detection> all_candidates;
+    const float norm_vals[3] = {1 / 255.0f, 1 / 255.0f, 1 / 255.0f};
+
+    for (const auto& tile : tiles) {
+        auto t_prep_start = std::chrono::high_resolution_clock::now();
+
+        ncnn::Mat patch_rgb;
+        if (tile.x == 0 && tile.y == 0 && tile.w == W && tile.h == H) {
+            patch_rgb = in_rgb;
+        } else {
+            int top = tile.y;
+            int bottom = H - (tile.y + tile.h);
+            int left = tile.x;
+            int right = W - (tile.x + tile.w);
+            ncnn::copy_cut_border(in_rgb, patch_rgb, top, bottom, left, right);
+        }
+
+        LetterboxInfo info;
+        ncnn::Mat in_letterboxed;
+        preprocess_letterbox(patch_rgb, in_letterboxed, info, 640);
+        in_letterboxed.substract_mean_normalize(nullptr, norm_vals);
+
+        auto t_prep_end = std::chrono::high_resolution_clock::now();
+        total_prep_ms += std::chrono::duration<float, std::milli>(t_prep_end - t_prep_start).count();
+
+        auto t_inf_start = std::chrono::high_resolution_clock::now();
+        ncnn::Extractor ex = net_.create_extractor();
+        ex.input("in0", in_letterboxed);
+
+        ncnn::Mat out0;
+        int ret = ex.extract("out0", out0);
+        auto t_inf_end = std::chrono::high_resolution_clock::now();
+        total_infer_ms += std::chrono::duration<float, std::milli>(t_inf_end - t_inf_start).count();
+
+        if (ret == 0) {
+            decode_detections(out0, info, tile.x, tile.y, W, H, conf_thresh, 640, all_candidates);
+        }
+    }
+
+    int raw_box_count = static_cast<int>(all_candidates.size());
+
+    // Global NMS pass across all merged tile candidates
+    auto nms_start = std::chrono::high_resolution_clock::now();
+    std::sort(all_candidates.begin(), all_candidates.end(), [](const Detection& a, const Detection& b) {
+        return a.score > b.score;
+    });
+
+    std::vector<int> picked;
+    nms_sorted_bboxes(all_candidates, picked, nms_thresh);
+
+    std::vector<Detection> results;
+    results.reserve(picked.size());
+    for (int idx : picked) {
+        results.push_back(all_candidates[idx]);
+    }
+    auto nms_end = std::chrono::high_resolution_clock::now();
+    float nms_ms = std::chrono::duration<float, std::milli>(nms_end - nms_start).count();
+
+    auto total_end = std::chrono::high_resolution_clock::now();
+    float total_ms = std::chrono::duration<float, std::milli>(total_end - total_start).count();
+
+    if (timings) {
+        timings->preprocess_ms = total_prep_ms;
+        timings->infer_ms = total_infer_ms;
+        timings->nms_ms = nms_ms;
+        timings->total_ms = total_ms;
+        timings->tile_count = static_cast<int>(tiles.size());
+        timings->raw_box_count = raw_box_count;
+        timings->merged_box_count = static_cast<int>(results.size());
+    }
+
+    LOGI("[SAHI 2x2] Tiles=%zu, RawDets=%d, MergedDets=%zu, Pre=%.1fms, Inf=%.1fms, NMS=%.1fms, Total=%.1fms",
+         tiles.size(), raw_box_count, results.size(), total_prep_ms, total_infer_ms, nms_ms, total_ms);
 
     return results;
 }

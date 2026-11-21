@@ -16,11 +16,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class ScanMode {
+    SINGLE_640,
+    SAHI_2X2
+}
+
 data class SnapVerifyUiState(
     val capturedBitmap: Bitmap? = null,
     val detections: List<DetectionResult> = emptyList(),
     val telemetry: Telemetry = Telemetry(),
     val isProcessing: Boolean = false,
+    val scanMode: ScanMode = ScanMode.SINGLE_640,
     val confThresh: Float = 0.40f,
     val nmsThresh: Float = 0.45f,
     val isSaved: Boolean = false,
@@ -38,16 +44,47 @@ class SnapVerifyViewModel(
     private val _uiState = MutableStateFlow(SnapVerifyUiState())
     val uiState: StateFlow<SnapVerifyUiState> = _uiState.asStateFlow()
 
+    fun setScanMode(mode: ScanMode) {
+        if (_uiState.value.scanMode == mode) return
+        _uiState.update { it.copy(scanMode = mode) }
+        val currentBitmap = _uiState.value.capturedBitmap
+        if (currentBitmap != null) {
+            runInference(currentBitmap, mode)
+        }
+    }
+
     fun processCapturedBitmap(bitmap: Bitmap) {
-        _uiState.update { it.copy(isProcessing = true, capturedBitmap = bitmap) }
+        _uiState.update { it.copy(capturedBitmap = bitmap) }
+        runInference(bitmap, _uiState.value.scanMode)
+    }
+
+    fun processImportedBitmap(bitmap: Bitmap) {
+        _uiState.update { it.copy(capturedBitmap = bitmap) }
+        runInference(bitmap, _uiState.value.scanMode)
+    }
+
+    private fun runInference(bitmap: Bitmap, mode: ScanMode) {
+        _uiState.update { it.copy(isProcessing = true) }
 
         viewModelScope.launch(Dispatchers.Default) {
-            val (dets, telem) = nativeEngine.detectBitmap(
-                bitmap = bitmap,
-                confThresh = _uiState.value.confThresh,
-                nmsThresh = _uiState.value.nmsThresh,
-                enableTracking = false
-            )
+            val (dets, telem) = when (mode) {
+                ScanMode.SINGLE_640 -> {
+                    nativeEngine.detectBitmap(
+                        bitmap = bitmap,
+                        confThresh = _uiState.value.confThresh,
+                        nmsThresh = _uiState.value.nmsThresh,
+                        enableTracking = false
+                    )
+                }
+                ScanMode.SAHI_2X2 -> {
+                    nativeEngine.detectBitmapTiled(
+                        bitmap = bitmap,
+                        confThresh = _uiState.value.confThresh,
+                        nmsThresh = _uiState.value.nmsThresh,
+                        overlapRatio = 0.20f
+                    )
+                }
+            }
 
             _uiState.update {
                 it.copy(
@@ -99,7 +136,11 @@ class SnapVerifyViewModel(
                 shelfLocation = shelfLocation.ifBlank { "Unspecified Shelf" },
                 totalCount = validDetections.size,
                 operatorNotes = notes,
-                mode = "SNAP_AND_VERIFY"
+                mode = if (state.scanMode == ScanMode.SAHI_2X2) "SNAP_VERIFY_SAHI" else "SNAP_VERIFY",
+                rawBoxCount = state.telemetry.rawBoxCount,
+                mergedBoxCount = state.telemetry.mergedBoxCount,
+                tileCount = state.telemetry.tileCount,
+                durationMs = state.telemetry.totalLatencyMs.toLong()
             )
 
             val records = validDetections.map { det ->
@@ -125,6 +166,7 @@ class SnapVerifyViewModel(
     fun reset() {
         _uiState.update {
             SnapVerifyUiState(
+                scanMode = it.scanMode,
                 confThresh = it.confThresh,
                 nmsThresh = it.nmsThresh
             )

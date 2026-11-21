@@ -13,7 +13,11 @@ data class InventorySessionEntity(
     val shelfLocation: String,
     val totalCount: Int,
     val operatorNotes: String,
-    val mode: String
+    val mode: String,
+    val rawBoxCount: Int = 0,
+    val mergedBoxCount: Int = 0,
+    val tileCount: Int = 0,
+    val durationMs: Long = 0L
 )
 
 @Entity(

@@ -3,13 +3,17 @@
     <string name="app_name">ShelfPulse AI</string>
     <string name="tab_snap_verify">التقاط وتحقق</string>
     <string name="tab_live_scan">مسح مباشر</string>
+    <string name="tab_video_audit">تدقيق الفيديو</string>
     <string name="tab_history">السجل</string>
 
     <!-- Snap & Verify -->
     <string name="snap_title">وضع الالتقاط والتحقق</string>
     <string name="btn_capture">التقاط وحساب</string>
+    <string name="btn_import_photo">استيراد صورة</string>
     <string name="btn_retake">إعادة الالتقاط</string>
     <string name="btn_save_session">حفظ الجلسة</string>
+    <string name="mode_single_640">مسار مفرد 640</string>
+    <string name="mode_sahi_2x2">تجزئة SAHI 2x2</string>
     <string name="txt_products_detected">المنتجات المكتشفة</string>
     <string name="hint_tap_to_add">انقر على أي منتج لإضافة علامة يدوية (+1)</string>
     <string name="hint_tap_box_to_remove">انقر على المربع لإلغاء تحديده (-1)</string>
@@ -20,6 +24,17 @@
     <string name="hint_notes">مثال: تمت إعادة تعبئة المشروبات</string>
     <string name="btn_save">حفظ</string>
     <string name="btn_cancel">إلغاء</string>
+
+    <!-- Video Audit (Aisle Walkthrough) -->
+    <string name="video_audit_title">تدقيق فيديو ممر الرفوف</string>
+    <string name="btn_import_video">استيراد فيديو</string>
+    <string name="btn_start_audit">بدء التدقيق</string>
+    <string name="btn_cancel_audit">إلغاء التدقيق</string>
+    <string name="txt_unique_products">المنتجات الفريدة المتتبعة</string>
+    <string name="txt_video_ready">الفيديو جاهز للتدقيق</string>
+    <string name="txt_video_duration">المدة: %1$.1f ثانية (%2$d إطار)</string>
+    <string name="txt_audit_complete">اكتمل تدقيق الفيديو بنجاح</string>
+    <string name="txt_select_video_prompt">استورد مقطع فيديو لجولة في ممر الرفوف من المعرض لإجراء تدقيق الجرد.</string>
 
     <!-- Live Scan -->
     <string name="live_scan_title">المسح المباشر اللحظي</string>
