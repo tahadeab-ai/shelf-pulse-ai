@@ -116,6 +116,7 @@ object ExportManager {
             dObj.put("classId", r.classId)
             dObj.put("trackId", r.trackId)
             dObj.put("isManual", r.isManual)
+            dObj.put("skuId", r.skuId ?: (session.barcode ?: JSONObject.NULL))
             detsArray.put(dObj)
         }
         root.put("detections", detsArray)
