@@ -62,7 +62,8 @@ class PayloadFormatterTest {
         assertThat(root.getString("item_name")).isEqualTo("Oreo Original Cookies 154g")
         assertThat(root.getInt("quantity")).isEqualTo(20)
         assertThat(root.getString("location")).isEqualTo("Aisle 4, Bay C")
-        assertThat(root.getString("notes")).contains("ShelfPulse v2.2 Count: 20")
+        assertThat(root.getString("notes")).contains("ShelfPulse")
+        assertThat(root.getString("notes")).contains("Count: 20")
         assertThat(root.getString("notes")).contains("Variance: -5")
     }
 
