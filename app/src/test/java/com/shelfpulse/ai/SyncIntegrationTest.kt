@@ -5,20 +5,23 @@ import com.shelfpulse.ai.data.sync.ConnectorPreset
 import com.shelfpulse.ai.data.sync.HttpSyncConnector
 import com.shelfpulse.ai.data.sync.SyncConfig
 import com.shelfpulse.ai.domain.model.InventorySession
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpHandler
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import java.net.InetSocketAddress
-import java.util.concurrent.Executors
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 class SyncIntegrationTest {
 
-    private lateinit var server: HttpServer
+    private lateinit var server: LocalHttpServer
     private lateinit var serverUrl: String
     private val connector = HttpSyncConnector()
 
@@ -37,36 +40,133 @@ class SyncIntegrationTest {
         syncStatus = "LOCAL_ONLY"
     )
 
+    class RecordedRequest(
+        val method: String,
+        val path: String,
+        val headers: Map<String, String>,
+        val body: String
+    )
+
+    class HttpResponse(
+        val statusCode: Int = 200,
+        val body: String = "",
+        val contentType: String = "application/json"
+    )
+
+    class LocalHttpServer : AutoCloseable {
+        private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val port: Int = serverSocket.localPort
+        val baseUrl: String = "http://127.0.0.1:$port"
+
+        private val handlers = ConcurrentHashMap<String, (RecordedRequest) -> HttpResponse>()
+        val recordedRequests = CopyOnWriteArrayList<RecordedRequest>()
+
+        private val workerThread = Thread {
+            while (!serverSocket.isClosed) {
+                try {
+                    val client = serverSocket.accept()
+                    handleSocket(client)
+                } catch (_: SocketException) {
+                    break
+                } catch (_: Exception) {
+                }
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+
+        fun registerHandler(path: String, handler: (RecordedRequest) -> HttpResponse) {
+            handlers[path] = handler
+        }
+
+        private fun handleSocket(socket: Socket) {
+            socket.use { s ->
+                val input = s.getInputStream()
+                val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
+                val requestLine = reader.readLine() ?: return
+                val parts = requestLine.split(" ")
+                val method = parts.getOrNull(0) ?: "GET"
+                val path = parts.getOrNull(1) ?: "/"
+
+                val headers = mutableMapOf<String, String>()
+                var contentLength = 0
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isEmpty()) break
+                    val colonIdx = line.indexOf(':')
+                    if (colonIdx > 0) {
+                        val key = line.substring(0, colonIdx).trim().lowercase()
+                        val value = line.substring(colonIdx + 1).trim()
+                        headers[key] = value
+                        if (key == "content-length") {
+                            contentLength = value.toIntOrNull() ?: 0
+                        }
+                    }
+                }
+
+                val bodyChars = CharArray(contentLength)
+                var totalRead = 0
+                while (totalRead < contentLength) {
+                    val read = reader.read(bodyChars, totalRead, contentLength - totalRead)
+                    if (read == -1) break
+                    totalRead += read
+                }
+                val body = String(bodyChars, 0, totalRead)
+                val req = RecordedRequest(method, path, headers, body)
+                recordedRequests.add(req)
+
+                val handler = handlers[path] ?: { HttpResponse(404, "Not Found") }
+                val resp = handler(req)
+
+                val respBytes = resp.body.toByteArray(Charsets.UTF_8)
+                val statusText = when (resp.statusCode) {
+                    200 -> "OK"
+                    201 -> "Created"
+                    401 -> "Unauthorized"
+                    404 -> "Not Found"
+                    500 -> "Internal Server Error"
+                    else -> "Status"
+                }
+
+                val headerStr = "HTTP/1.1 ${resp.statusCode} $statusText\r\n" +
+                        "Content-Type: ${resp.contentType}\r\n" +
+                        "Content-Length: ${respBytes.size}\r\n" +
+                        "Connection: close\r\n\r\n"
+
+                val output = s.getOutputStream()
+                output.write(headerStr.toByteArray(Charsets.UTF_8))
+                if (respBytes.isNotEmpty()) {
+                    output.write(respBytes)
+                }
+                output.flush()
+            }
+        }
+
+        override fun close() {
+            try {
+                serverSocket.close()
+            } catch (_: Exception) {}
+        }
+    }
+
     @Before
     fun setUp() {
-        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.executor = Executors.newCachedThreadPool()
-        server.start()
-        val port = server.address.port
-        serverUrl = "http://127.0.0.1:$port"
+        server = LocalHttpServer()
+        serverUrl = server.baseUrl
     }
 
     @After
     fun tearDown() {
-        server.stop(0)
+        server.close()
     }
 
     @Test
     fun pushSession_genericWebhook_verifiesHeadersAndJsonSchema() = runBlocking {
-        var receivedMethod = ""
-        var receivedAuth = ""
-        var receivedContentType = ""
-        var receivedBody = ""
-
-        server.createContext("/webhook") { exchange ->
-            receivedMethod = exchange.requestMethod
-            receivedAuth = exchange.requestHeaders.getFirst("Authorization") ?: ""
-            receivedContentType = exchange.requestHeaders.getFirst("Content-Type") ?: ""
-            receivedBody = exchange.requestBody.bufferedReader().readText()
-
-            val response = "{\"status\":\"ok\",\"received\":true}"
-            exchange.sendResponseHeaders(200, response.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(response.toByteArray()) }
+        var recorded: RecordedRequest? = null
+        server.registerHandler("/webhook") { req ->
+            recorded = req
+            HttpResponse(200, "{\"status\":\"ok\",\"received\":true}")
         }
 
         val config = SyncConfig(
@@ -80,12 +180,13 @@ class SyncIntegrationTest {
         assertThat(result.isSuccess).isTrue()
 
         // 1. Verify HTTP method and headers
-        assertThat(receivedMethod).isEqualTo("POST")
-        assertThat(receivedAuth).isEqualTo("Bearer test-token-123")
-        assertThat(receivedContentType).contains("application/json")
+        val req = recorded!!
+        assertThat(req.method).isEqualTo("POST")
+        assertThat(req.headers["authorization"]).isEqualTo("Bearer test-token-123")
+        assertThat(req.headers["content-type"]).contains("application/json")
 
         // 2. Verify JSON body contents and schema keys
-        val root = JSONObject(receivedBody)
+        val root = JSONObject(req.body)
         assertThat(root.getString("schemaVersion")).isEqualTo("2.2")
         assertThat(root.getString("event")).isEqualTo("inventory.scanned")
 
@@ -103,18 +204,10 @@ class SyncIntegrationTest {
 
     @Test
     fun pushSession_invenTree_verifiesHeadersAndPayload() = runBlocking {
-        var receivedMethod = ""
-        var receivedAuth = ""
-        var receivedBody = ""
-
-        server.createContext("/api/stock/count/") { exchange ->
-            receivedMethod = exchange.requestMethod
-            receivedAuth = exchange.requestHeaders.getFirst("Authorization") ?: ""
-            receivedBody = exchange.requestBody.bufferedReader().readText()
-
-            val response = "{\"pk\":1,\"quantity\":180}"
-            exchange.sendResponseHeaders(201, response.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(response.toByteArray()) }
+        var recorded: RecordedRequest? = null
+        server.registerHandler("/api/stock/count/") { req ->
+            recorded = req
+            HttpResponse(201, "{\"pk\":1,\"quantity\":180}")
         }
 
         val config = SyncConfig(
@@ -127,10 +220,11 @@ class SyncIntegrationTest {
         val result = connector.pushSession(testSession, config)
         assertThat(result.isSuccess).isTrue()
 
-        assertThat(receivedMethod).isEqualTo("POST")
-        assertThat(receivedAuth).isEqualTo("Bearer inventree-api-key")
+        val req = recorded!!
+        assertThat(req.method).isEqualTo("POST")
+        assertThat(req.headers["authorization"]).isEqualTo("Bearer inventree-api-key")
 
-        val root = JSONObject(receivedBody)
+        val root = JSONObject(req.body)
         assertThat(root.getString("barcode")).isEqualTo("7622210449283")
         assertThat(root.getInt("quantity")).isEqualTo(180)
         assertThat(root.getString("location")).isEqualTo("Aisle 9 - Shelf C")
@@ -140,18 +234,10 @@ class SyncIntegrationTest {
 
     @Test
     fun pushSession_erpNext_verifiesHeadersAndPayload() = runBlocking {
-        var receivedMethod = ""
-        var receivedAuth = ""
-        var receivedBody = ""
-
-        server.createContext("/api/resource/Stock%20Reconciliation") { exchange ->
-            receivedMethod = exchange.requestMethod
-            receivedAuth = exchange.requestHeaders.getFirst("Authorization") ?: ""
-            receivedBody = exchange.requestBody.bufferedReader().readText()
-
-            val response = "{\"data\":{\"name\":\"REC-001\"}}"
-            exchange.sendResponseHeaders(200, response.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(response.toByteArray()) }
+        var recorded: RecordedRequest? = null
+        server.registerHandler("/api/resource/Stock%20Reconciliation") { req ->
+            recorded = req
+            HttpResponse(200, "{\"data\":{\"name\":\"REC-001\"}}")
         }
 
         val config = SyncConfig(
@@ -164,10 +250,11 @@ class SyncIntegrationTest {
         val result = connector.pushSession(testSession, config)
         assertThat(result.isSuccess).isTrue()
 
-        assertThat(receivedMethod).isEqualTo("POST")
-        assertThat(receivedAuth).isEqualTo("Bearer token api_key:api_secret")
+        val req = recorded!!
+        assertThat(req.method).isEqualTo("POST")
+        assertThat(req.headers["authorization"]).isEqualTo("Bearer token api_key:api_secret")
 
-        val root = JSONObject(receivedBody)
+        val root = JSONObject(req.body)
         assertThat(root.getString("doctype")).isEqualTo("Stock Reconciliation")
         val items = root.getJSONArray("items")
         assertThat(items.length()).isEqualTo(1)
@@ -182,12 +269,9 @@ class SyncIntegrationTest {
     fun testConnection_succeedsOnHttp200() = runBlocking {
         var testPingReceived = false
 
-        server.createContext("/ping") { exchange ->
-            val body = exchange.requestBody.bufferedReader().readText()
-            testPingReceived = body.contains("\"test\":true")
-            val resp = "{\"pong\":true}"
-            exchange.sendResponseHeaders(200, resp.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(resp.toByteArray()) }
+        server.registerHandler("/ping") { req ->
+            testPingReceived = req.body.contains("\"test\":true")
+            HttpResponse(200, "{\"pong\":true}")
         }
 
         val config = SyncConfig(
@@ -205,10 +289,8 @@ class SyncIntegrationTest {
 
     @Test
     fun pushSession_failsGracefullyOnHttp401Unauthorized() = runBlocking {
-        server.createContext("/unauthorized") { exchange ->
-            val errorResp = "{\"error\":\"Invalid bearer token\"}"
-            exchange.sendResponseHeaders(401, errorResp.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(errorResp.toByteArray()) }
+        server.registerHandler("/unauthorized") {
+            HttpResponse(401, "{\"error\":\"Invalid bearer token\"}")
         }
 
         val config = SyncConfig(
@@ -225,10 +307,8 @@ class SyncIntegrationTest {
 
     @Test
     fun pushSession_failsGracefullyOnHttp500ServerError() = runBlocking {
-        server.createContext("/error") { exchange ->
-            val errorResp = "{\"error\":\"Internal database down\"}"
-            exchange.sendResponseHeaders(500, errorResp.toByteArray().size.toLong())
-            exchange.responseBody.use { it.write(errorResp.toByteArray()) }
+        server.registerHandler("/error") {
+            HttpResponse(500, "{\"error\":\"Internal database down\"}")
         }
 
         val config = SyncConfig(
@@ -259,9 +339,8 @@ class SyncIntegrationTest {
 
     @Test
     fun testConnection_failsGracefullyOnHttp401AndUnreachablePort() = runBlocking {
-        server.createContext("/auth-fail") { exchange ->
-            exchange.sendResponseHeaders(401, 0)
-            exchange.responseBody.close()
+        server.registerHandler("/auth-fail") {
+            HttpResponse(401, "")
         }
 
         val config401 = SyncConfig(

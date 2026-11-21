@@ -297,7 +297,7 @@ flowchart LR
     Ephemeral --> Assertions["Server Handler Assertions:<br/>1. Method == POST<br/>2. Header: Authorization & Content-Type<br/>3. Body: depthMultiplier, totalCount, variance<br/>4. Status: 200, 201, 401, 500"]
 ```
 
-- **Zero External Dependencies:** Uses standard `com.sun.net.httpserver.HttpServer`, requiring zero additional Gradle dependencies or MockWebServer bloat.
+- **Zero External Dependencies:** Uses standard JVM `java.net.ServerSocket`, requiring zero additional Gradle dependencies or MockWebServer bloat.
 - **Port Collision Immune:** Binds to `InetSocketAddress("127.0.0.1", 0)`, allowing the OS kernel to assign an ephemeral free port.
 - **Full Coverage:** Validates `GENERIC_WEBHOOK`, `INVENTREE_REST`, `ERPNEXT_STOCK_RECONCILIATION`, header formats, JSON schemas, and error code propagation.
 
