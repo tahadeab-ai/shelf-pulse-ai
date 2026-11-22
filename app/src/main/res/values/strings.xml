@@ -143,4 +143,12 @@
     <!-- Diagnostics -->
     <string name="model_missing_title">NCNN Model Weights Missing</string>
     <string name="model_missing_msg">Please place model.ncnn.param and model.ncnn.bin in assets/models/, or run scripts/fetch_models.sh.</string>
+    <!-- Store Summary Bar & Bulk Export -->
+    <string name="summary_sessions">%1$d Sessions</string>
+    <string name="summary_total_units">%1$d Units</string>
+    <string name="summary_total_value">$%1$,.2f</string>
+    <string name="btn_export_all_csv">Export All CSV</string>
+    <string name="lbl_store_summary">Store Summary</string>
+    <string name="lbl_total_value">Total Value</string>
+    <string name="lbl_sessions_count">Sessions</string>
 </resources>

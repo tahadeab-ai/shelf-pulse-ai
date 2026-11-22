@@ -2,9 +2,9 @@
 
 <img src="docs/assets/logo.svg" alt="ShelfPulse AI Logo" width="120" height="120" />
 
-# ShelfPulse AI — v2.3.0 Enterprise Retail Suite
+# ShelfPulse AI — v2.3.1 Enterprise Retail Suite
 
-**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 & 3x3 Ultra Tiling, ByteTrack-cpp, zxing-cpp Barcode Scanner, In-App Arabic/English Switcher, Shelf Depth Multiplier, Internal Photo Storage with Embedded PDF Reports, and Pluggable ERP Sync.**
+**Offline Edge-AI Android Retail Inventory Counter powered by YOLO11, NCNN C++17, Native SAHI 2x2 & 3x3 Ultra Tiling, ByteTrack-cpp, zxing-cpp Barcode Scanner, In-App Arabic/English Switcher, Shelf Depth Multiplier, Internal Photo Storage with Embedded PDF Reports, Store Summary Bar & Bulk CSV Export, and Pluggable ERP Sync.**
 
 [![Android Release](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-release.yml)
 [![Android CI](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml/badge.svg)](https://github.com/tahadeab-ai/shelf-pulse-ai/actions/workflows/android-ci.yml)

@@ -119,6 +119,11 @@ fun HistoryScreen(
                 }
             }
         } else {
+            StoreSummaryBar(
+                sessions = sessions,
+                onExportAllCsv = { viewModel.exportAndShareAllSessionsCsv(context) }
+            )
+
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
@@ -859,6 +864,126 @@ private fun IntegrationsSettingsSheet(
                     color = Slate900,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreSummaryBar(
+    sessions: List<InventorySession>,
+    onExportAllCsv: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val totalUnits = remember(sessions) { sessions.sumOf { it.totalCount } }
+    val totalFinancialValue = remember(sessions) {
+        sessions.mapNotNull { it.totalFinancialValue }.sum()
+    }
+    val hasPricing = remember(sessions) {
+        sessions.any { it.unitPrice != null && it.unitPrice > 0.0 }
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Slate800),
+        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Slate700))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Metrics (Sessions, Units, optional Financial Value)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Sessions
+                Column {
+                    Text(
+                        text = "${sessions.size}",
+                        color = Slate100,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = stringResource(R.string.lbl_sessions_count),
+                        color = Slate400,
+                        fontSize = 10.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(20.dp)
+                        .background(Slate700)
+                )
+
+                // Total Units
+                Column {
+                    Text(
+                        text = String.format(Locale.US, "%,d", totalUnits),
+                        color = Emerald400,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = stringResource(R.string.txt_units),
+                        color = Slate400,
+                        fontSize = 10.sp
+                    )
+                }
+
+                if (hasPricing) {
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(20.dp)
+                            .background(Slate700)
+                    )
+
+                    // Total Value
+                    Column {
+                        Text(
+                            text = String.format(Locale.US, "$%,.2f", totalFinancialValue),
+                            color = Amber400,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = stringResource(R.string.lbl_total_value),
+                            color = Slate400,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            // Export All CSV button
+            FilledTonalButton(
+                onClick = onExportAllCsv,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = Emerald600.copy(alpha = 0.2f),
+                    contentColor = Emerald400
+                ),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FileDownload,
+                    contentDescription = stringResource(R.string.btn_export_all_csv),
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.btn_export_all_csv),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

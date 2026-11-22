@@ -144,4 +144,12 @@
     <!-- Diagnostics -->
     <string name="model_missing_title">أوزان نموذج NCNN مفقودة</string>
     <string name="model_missing_msg">يرجى وضع ملفات model.ncnn.param و model.ncnn.bin في assets/models/، أو تشغيل scripts/fetch_models.sh.</string>
+    <!-- Store Summary Bar & Bulk Export -->
+    <string name="summary_sessions">%1$d جلسة</string>
+    <string name="summary_total_units">%1$d وحدة</string>
+    <string name="summary_total_value">%1$,.2f $</string>
+    <string name="btn_export_all_csv">تصدير الكل (CSV)</string>
+    <string name="lbl_store_summary">ملخص المتجر</string>
+    <string name="lbl_total_value">القيمة الإجمالية</string>
+    <string name="lbl_sessions_count">الجلسات</string>
 </resources>

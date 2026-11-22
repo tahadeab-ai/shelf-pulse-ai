@@ -67,6 +67,35 @@ object ExportManager {
         return sb.toString()
     }
 
+    fun generateAllSessionsCsvString(sessions: List<InventorySession>): String {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        val sb = StringBuilder()
+        // Prepend UTF-8 BOM for Microsoft Excel compatibility
+        sb.append("\uFEFF")
+
+        // Consolidated Summary Header
+        sb.append("Session ID,Date,Shelf/Aisle,Barcode,Product Name,Front Facings,Depth,Total Units,Expected,Variance,Unit Price,Total Value,Sync Status\n")
+
+        sessions.forEach { s ->
+            val dateString = dateFormat.format(Date(s.timestamp))
+            sb.append(escape(s.id.toString())).append(",")
+            sb.append(escape(dateString)).append(",")
+            sb.append(escape(s.shelfLocation)).append(",")
+            sb.append(escape(s.barcode ?: "")).append(",")
+            sb.append(escape(s.productName ?: "")).append(",")
+            sb.append(s.frontFacings).append(",")
+            sb.append(s.depthMultiplier).append(",")
+            sb.append(s.totalCount).append(",")
+            sb.append(s.expectedStock?.toString() ?: "").append(",")
+            sb.append(s.variance?.toString() ?: "").append(",")
+            sb.append(s.unitPrice?.let { String.format(Locale.US, "%.2f", it) } ?: "").append(",")
+            sb.append(s.totalFinancialValue?.let { String.format(Locale.US, "%.2f", it) } ?: "").append(",")
+            sb.append(escape(s.syncStatus)).append("\n")
+        }
+
+        return sb.toString()
+    }
+
     fun generateJsonString(session: InventorySession, records: List<ShelfScanRecord>): String {
         val root = JSONObject()
         root.put("schemaVersion", "2.1")
@@ -134,6 +163,20 @@ object ExportManager {
         val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
         val file = File(exportsDir, "shelfpulse_session_${session.id}_${session.timestamp}.csv")
         val content = generateCsvString(session, records)
+
+        FileOutputStream(file).use { out ->
+            out.write(content.toByteArray(StandardCharsets.UTF_8))
+            out.flush()
+        }
+
+        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    fun exportAllSessionsCsv(context: Context, sessions: List<InventorySession>): Uri {
+        val exportsDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val timestamp = System.currentTimeMillis()
+        val file = File(exportsDir, "shelfpulse_store_summary_$timestamp.csv")
+        val content = generateAllSessionsCsvString(sessions)
 
         FileOutputStream(file).use { out ->
             out.write(content.toByteArray(StandardCharsets.UTF_8))

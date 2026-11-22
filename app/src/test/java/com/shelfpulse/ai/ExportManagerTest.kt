@@ -149,4 +149,56 @@ class ExportManagerTest {
         assertThat(firstDet.getDouble("confidence")).isWithin(0.001).of(0.88)
         assertThat(firstDet.getString("skuId")).isEqualTo("5449000000996")
     }
+
+    @Test
+    fun generateAllSessionsCsvString_prependsUtf8BomAndIncludesAllSessions() {
+        val session1 = InventorySession(
+            id = 1,
+            timestamp = 1710000000000L,
+            shelfLocation = "Aisle 1 - Dairy",
+            totalCount = 30,
+            depthMultiplier = 2,
+            mode = "SNAP_VERIFY_SAHI_2X2",
+            barcode = "1111111111111",
+            productName = "Whole Milk 1L",
+            expectedStock = 25,
+            unitPrice = 1.50,
+            syncStatus = "SYNCED"
+        )
+        val session2 = InventorySession(
+            id = 2,
+            timestamp = 1710001000000L,
+            shelfLocation = "Aisle 2 - Bakery",
+            totalCount = 10,
+            depthMultiplier = 1,
+            mode = "SINGLE_640",
+            barcode = "2222222222222",
+            productName = "Sourdough Bread",
+            expectedStock = 12,
+            unitPrice = 3.00,
+            syncStatus = "LOCAL_ONLY"
+        )
+
+        val csv = ExportManager.generateAllSessionsCsvString(listOf(session1, session2))
+
+        // 1. Verify UTF-8 BOM
+        assertThat(csv.startsWith("\uFEFF")).isTrue()
+
+        // 2. Verify Header
+        assertThat(csv).contains("Session ID,Date,Shelf/Aisle,Barcode,Product Name,Front Facings,Depth,Total Units,Expected,Variance,Unit Price,Total Value,Sync Status")
+
+        // 3. Verify Session 1 row and totals
+        assertThat(csv).contains("1,")
+        assertThat(csv).contains("\"Aisle 1 - Dairy\"")
+        assertThat(csv).contains("1111111111111")
+        assertThat(csv).contains("Whole Milk 1L")
+        assertThat(csv).contains(",15,2,30,25,5,1.50,45.00,SYNCED")
+
+        // 4. Verify Session 2 row and totals
+        assertThat(csv).contains("2,")
+        assertThat(csv).contains("\"Aisle 2 - Bakery\"")
+        assertThat(csv).contains("2222222222222")
+        assertThat(csv).contains("Sourdough Bread")
+        assertThat(csv).contains(",10,1,10,12,-2,3.00,30.00,LOCAL_ONLY")
+    }
 }

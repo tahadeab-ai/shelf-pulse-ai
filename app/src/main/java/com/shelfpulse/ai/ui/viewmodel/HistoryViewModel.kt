@@ -98,6 +98,27 @@ class HistoryViewModel(
         exportAndShare(context, session, ExportFormat.CSV)
     }
 
+    fun exportAndShareAllSessionsCsv(context: Context) {
+        val currentSessions = sessions.value
+        if (currentSessions.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val uri = ExportManager.exportAllSessionsCsv(context, currentSessions)
+            withContext(Dispatchers.Main) {
+                try {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/csv"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, "ShelfPulse Store Summary Report - ${currentSessions.size} Sessions")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Export All Sessions CSV"))
+                } catch (e: Exception) {
+                    android.util.Log.e("HistoryViewModel", "Bulk CSV share failed", e)
+                }
+            }
+        }
+    }
+
     fun triggerSessionSync(context: Context, session: InventorySession) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateSyncStatus(session.id, "QUEUED")
