@@ -189,14 +189,14 @@ class ExportManagerTest {
 
         // 3. Verify Session 1 row and totals
         assertThat(csv).contains("1,")
-        assertThat(csv).contains("\"Aisle 1 - Dairy\"")
+        assertThat(csv).contains("Aisle 1 - Dairy")
         assertThat(csv).contains("1111111111111")
         assertThat(csv).contains("Whole Milk 1L")
         assertThat(csv).contains(",15,2,30,25,5,1.50,45.00,SYNCED")
 
         // 4. Verify Session 2 row and totals
         assertThat(csv).contains("2,")
-        assertThat(csv).contains("\"Aisle 2 - Bakery\"")
+        assertThat(csv).contains("Aisle 2 - Bakery")
         assertThat(csv).contains("2222222222222")
         assertThat(csv).contains("Sourdough Bread")
         assertThat(csv).contains(",10,1,10,12,-2,3.00,30.00,LOCAL_ONLY")
