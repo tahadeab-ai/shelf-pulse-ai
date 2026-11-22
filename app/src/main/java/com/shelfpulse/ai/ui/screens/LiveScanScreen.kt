@@ -530,7 +530,6 @@ fun LiveScanScreen(
                                         fontSize = 11.sp
                                     )
                                     uiState.linkedExpectedStock?.let { expected ->
-                                        val variance = uiState.variance ?: (uiState.totalCountWithDepth - expected)
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween
@@ -540,12 +539,19 @@ fun LiveScanScreen(
                                                 color = Slate300,
                                                 fontSize = 11.sp
                                             )
-                                            Text(
-                                                text = "${stringResource(R.string.lbl_variance)}: ${if (variance >= 0) "+$variance" else "$variance"}",
-                                                color = if (variance >= 0) Emerald400 else Rose500,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
-                                            )
+                                            uiState.variance?.let { v ->
+                                                val (varText, varColor) = when {
+                                                    v > 0 -> stringResource(R.string.lbl_variance_surplus, v) to Emerald400
+                                                    v < 0 -> stringResource(R.string.lbl_variance_shortage, v) to Rose500
+                                                    else -> stringResource(R.string.lbl_variance_match) to Emerald400
+                                                }
+                                                Text(
+                                                    text = varText,
+                                                    color = varColor,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
                                         }
                                     }
                                     uiState.totalFinancialValue?.let { value ->

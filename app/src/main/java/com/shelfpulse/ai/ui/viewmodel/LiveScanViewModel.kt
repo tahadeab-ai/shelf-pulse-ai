@@ -319,7 +319,7 @@ class LiveScanViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             if (state.linkedBarcode != null && state.linkedProductName != null) {
-                repository.insertProduct(
+                repository.upsertProduct(
                     ProductCatalogEntity(
                         barcode = state.linkedBarcode,
                         name = state.linkedProductName,
