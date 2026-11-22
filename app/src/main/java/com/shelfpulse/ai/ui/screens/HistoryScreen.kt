@@ -969,7 +969,7 @@ private fun StoreSummaryBar(
                 onClick = onExportAllCsv,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Emerald600.copy(alpha = 0.2f),
+                    containerColor = Emerald500.copy(alpha = 0.2f),
                     contentColor = Emerald400
                 ),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
