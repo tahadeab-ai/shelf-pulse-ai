@@ -44,5 +44,47 @@ class ViewModelStateTest {
         assertThat(state.isAuditing).isFalse()
         assertThat(state.isComplete).isFalse()
         assertThat(state.uniqueTrackedCount).isEqualTo(0)
+        assertThat(state.depthMultiplier).isEqualTo(1)
+        assertThat(state.totalCountWithDepth).isEqualTo(0)
+    }
+
+    @Test
+    fun liveScanUiState_depthAndSkuCalculations() {
+        val state = com.shelfpulse.ai.ui.viewmodel.LiveScanUiState(
+            cumulativeTrackCount = 15,
+            depthMultiplier = 3,
+            linkedBarcode = "628100123456",
+            linkedProductName = "Almarai Fresh Milk 1L",
+            linkedExpectedStock = 40,
+            linkedUnitPrice = 1.75
+        )
+
+        // 15 front facings * 3 depth = 45 total count
+        assertThat(state.frontFacings).isEqualTo(15)
+        assertThat(state.totalCountWithDepth).isEqualTo(45)
+        // 45 counted - 40 expected = +5 variance (surplus)
+        assertThat(state.variance).isEqualTo(5)
+        // 45 * $1.75 = $78.75
+        assertThat(state.totalFinancialValue).isEqualTo(78.75)
+    }
+
+    @Test
+    fun videoAuditUiState_depthAndSkuCalculations() {
+        val state = com.shelfpulse.ai.ui.viewmodel.VideoAuditUiState(
+            uniqueTrackedCount = 20,
+            depthMultiplier = 4,
+            linkedBarcode = "628700987654",
+            linkedProductName = "Lipton Green Tea 100s",
+            linkedExpectedStock = 100,
+            linkedUnitPrice = 3.50
+        )
+
+        // 20 front facings * 4 depth = 80 total count
+        assertThat(state.frontFacings).isEqualTo(20)
+        assertThat(state.totalCountWithDepth).isEqualTo(80)
+        // 80 counted - 100 expected = -20 variance (shortage)
+        assertThat(state.variance).isEqualTo(-20)
+        // 80 * $3.50 = $280.00
+        assertThat(state.totalFinancialValue).isEqualTo(280.0)
     }
 }

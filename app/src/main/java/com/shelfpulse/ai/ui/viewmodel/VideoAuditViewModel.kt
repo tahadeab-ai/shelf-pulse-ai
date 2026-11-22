@@ -7,7 +7,9 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shelfpulse.ai.data.db.ProductCatalogEntity
 import com.shelfpulse.ai.data.repository.InventoryRepository
+import com.shelfpulse.ai.data.storage.SessionPhotoStore
 import com.shelfpulse.ai.domain.model.DetectionResult
 import com.shelfpulse.ai.domain.model.InventorySession
 import com.shelfpulse.ai.domain.model.ShelfScanRecord
@@ -37,8 +39,26 @@ data class VideoAuditUiState(
     val lastSavedSessionId: Long? = null,
     val confThresh: Float = 0.30f,
     val nmsThresh: Float = 0.45f,
-    val targetResolution: Int = 640
-)
+    val targetResolution: Int = 640,
+    val depthMultiplier: Int = 1,
+    val linkedBarcode: String? = null,
+    val linkedProductName: String? = null,
+    val linkedBrand: String? = null,
+    val linkedExpectedStock: Int? = null,
+    val linkedUnitPrice: Double? = null
+) {
+    val frontFacings: Int
+        get() = uniqueTrackedCount
+
+    val totalCountWithDepth: Int
+        get() = frontFacings * depthMultiplier.coerceIn(1, 20)
+
+    val variance: Int?
+        get() = linkedExpectedStock?.let { totalCountWithDepth - it }
+
+    val totalFinancialValue: Double?
+        get() = linkedUnitPrice?.let { totalCountWithDepth * it }
+}
 
 class VideoAuditViewModel(
     private val nativeEngine: ShelfPulseNativeEngine,
@@ -220,25 +240,96 @@ class VideoAuditViewModel(
         _uiState.update { it.copy(isAuditing = false) }
     }
 
-    fun saveSession(shelfLocation: String, notes: String, onComplete: () -> Unit = {}) {
+    fun setDepthMultiplier(depth: Int) {
+        _uiState.update { it.copy(depthMultiplier = depth.coerceIn(1, 20)) }
+    }
+
+    fun linkSku(
+        barcode: String,
+        productName: String,
+        brand: String?,
+        expectedStock: Int?,
+        unitPrice: Double?
+    ) {
+        _uiState.update {
+            it.copy(
+                linkedBarcode = barcode,
+                linkedProductName = productName,
+                linkedBrand = brand,
+                linkedExpectedStock = expectedStock,
+                linkedUnitPrice = unitPrice
+            )
+        }
+    }
+
+    fun clearLinkedProduct() {
+        _uiState.update {
+            it.copy(
+                linkedBarcode = null,
+                linkedProductName = null,
+                linkedBrand = null,
+                linkedExpectedStock = null,
+                linkedUnitPrice = null
+            )
+        }
+    }
+
+    fun saveSession(
+        shelfLocation: String,
+        notes: String,
+        initialSyncStatus: String = "LOCAL_ONLY",
+        context: Context? = null,
+        onComplete: (Long) -> Unit = {}
+    ) {
         val state = _uiState.value
         val uniqueCount = state.uniqueTrackedCount
+        val bestFrame = state.currentPreviewBitmap
 
         viewModelScope.launch(Dispatchers.IO) {
+            if (state.linkedBarcode != null && state.linkedProductName != null) {
+                repository.insertProduct(
+                    ProductCatalogEntity(
+                        barcode = state.linkedBarcode,
+                        name = state.linkedProductName,
+                        brand = state.linkedBrand ?: "",
+                        expectedStock = state.linkedExpectedStock ?: 0,
+                        unitPrice = state.linkedUnitPrice ?: 0.0,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+
+            val depth = state.depthMultiplier.coerceIn(1, 20)
+            val totalCount = state.totalCountWithDepth
+
             val session = InventorySession(
                 shelfLocation = shelfLocation.ifBlank { "Aisle Video Audit" },
-                totalCount = uniqueCount,
+                totalCount = totalCount,
                 operatorNotes = notes,
                 mode = "VIDEO_AUDIT",
                 rawBoxCount = accumulatedRecords.size,
                 mergedBoxCount = uniqueCount,
                 tileCount = 1,
-                durationMs = state.videoDurationMs
+                durationMs = state.videoDurationMs,
+                barcode = state.linkedBarcode,
+                productName = state.linkedProductName,
+                expectedStock = state.linkedExpectedStock,
+                unitPrice = state.linkedUnitPrice,
+                syncStatus = initialSyncStatus,
+                depthMultiplier = depth
             )
 
             val sessionId = repository.saveSession(session, accumulatedRecords.toList())
+
+            if (context != null && bestFrame != null) {
+                val savedPath = SessionPhotoStore.savePhoto(context, sessionId, bestFrame)
+                if (savedPath != null) {
+                    repository.updatePhotoPath(sessionId, savedPath)
+                }
+            }
+
             _uiState.update { it.copy(isSaved = true, lastSavedSessionId = sessionId) }
-            onComplete()
+            onComplete(sessionId)
         }
     }
 

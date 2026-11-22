@@ -42,6 +42,7 @@ import com.shelfpulse.ai.R
 import com.shelfpulse.ai.data.sync.SyncAuditWorker
 import com.shelfpulse.ai.data.sync.SyncPreferences
 import com.shelfpulse.ai.ui.components.BarcodeScanSheet
+import com.shelfpulse.ai.ui.components.CompactDepthStepper
 import com.shelfpulse.ai.ui.components.ImageImportHelper
 import com.shelfpulse.ai.ui.components.InteractiveBoundingBoxCanvas
 import com.shelfpulse.ai.ui.components.LanguageSwitcherTopBarButton
@@ -875,59 +876,7 @@ fun SnapVerifyScreen(
     }
 }
 
-@Composable
-fun CompactDepthStepper(
-    depth: Int,
-    onDepthChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        color = Slate800,
-        shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Slate700),
-        modifier = modifier
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-        ) {
-            IconButton(
-                onClick = { if (depth > 1) onDepthChange(depth - 1) },
-                enabled = depth > 1,
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Remove,
-                    contentDescription = "Decrease Depth",
-                    tint = if (depth > 1) Emerald400 else Slate600,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
 
-            Text(
-                text = stringResource(R.string.depth_stepper, depth),
-                color = Slate100,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-
-            IconButton(
-                onClick = { if (depth < 20) onDepthChange(depth + 1) },
-                enabled = depth < 20,
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Increase Depth",
-                    tint = if (depth < 20) Emerald400 else Slate600,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun SegmentedModeToggle(

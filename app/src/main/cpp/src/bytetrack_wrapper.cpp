@@ -118,10 +118,13 @@ void STrack::reset_id_counter() {
 STrack::STrack(const std::vector<float>& tlwh, float score, int class_id)
     : is_activated(false), track_id(0), state(TrackState::New),
       _tlwh(tlwh), score(score), class_id(class_id), frame_id(0),
-      tracklet_len(0), start_frame(0) {}
+      tracklet_len(0), start_frame(0) {
+    mean.setZero();
+    covariance.setZero();
+}
 
 std::vector<float> STrack::tlwh() const {
-    if (mean.size() == 0) return _tlwh;
+    if (!is_activated) return _tlwh;
     float w = std::max(1e-4f, mean(2) * mean(3));
     float h = std::max(1e-4f, mean(3));
     float x1 = mean(0) - w / 2.0f;
@@ -157,6 +160,7 @@ void STrack::activate(byte_kalman::KalmanFilter& kalman_filter, int frame_id) {
 
 void STrack::re_activate(STrack& new_track, int frame_id, bool new_id) {
     auto new_box = new_track.tlwh();
+    this->_tlwh = new_box;
     float w = std::max(new_box[2], 1e-4f);
     float h = std::max(new_box[3], 1e-4f);
     byte_kalman::DETECTBOX box;
@@ -182,6 +186,7 @@ void STrack::update(STrack& new_track, int frame_id) {
     this->tracklet_len++;
 
     auto new_box = new_track.tlwh();
+    this->_tlwh = new_box;
     float w = std::max(new_box[2], 1e-4f);
     float h = std::max(new_box[3], 1e-4f);
     byte_kalman::DETECTBOX box;

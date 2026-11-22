@@ -36,6 +36,22 @@ jobs:
           chmod +x scripts/fetch_native_deps.sh
           ./scripts/fetch_native_deps.sh
 
+      - name: Compile and Run C++ ByteTrack Regression Tests
+        run: |
+          EIGEN_INC="app/src/main/cpp/third_party/eigen3"
+          if [ ! -d "$EIGEN_INC" ]; then
+            sudo apt-get update && sudo apt-get install -y libeigen3-dev
+            EIGEN_INC="/usr/include/eigen3"
+          fi
+          g++ -std=c++17 -O2 \
+            -Iapp/src/main/cpp/include \
+            -Iapp/src/main/cpp/include/bytetrack \
+            -I"$EIGEN_INC" \
+            app/src/main/cpp/src/bytetrack_wrapper.cpp \
+            app/src/main/cpp/tests/test_bytetrack.cpp \
+            -o test_bytetrack
+          ./test_bytetrack
+
       - name: Fetch NCNN Model Weights
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

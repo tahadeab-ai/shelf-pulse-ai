@@ -3,9 +3,9 @@ package com.shelfpulse.ai.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelfpulse.ai.R
+import com.shelfpulse.ai.data.sync.SyncAuditWorker
+import com.shelfpulse.ai.data.sync.SyncPreferences
+import com.shelfpulse.ai.ui.components.BarcodeScanSheet
+import com.shelfpulse.ai.ui.components.CompactDepthStepper
 import com.shelfpulse.ai.ui.components.InteractiveBoundingBoxCanvas
 import com.shelfpulse.ai.ui.components.TelemetryChip
 import com.shelfpulse.ai.ui.theme.*
@@ -37,6 +41,7 @@ fun VideoAuditScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
+    var showBarcodeSheet by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var shelfInput by remember { mutableStateOf("") }
     var notesInput by remember { mutableStateOf("") }
@@ -66,7 +71,7 @@ fun VideoAuditScreen(
                 Surface(
                     color = Slate800,
                     shape = RoundedCornerShape(24.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Slate700),
+                    border = BorderStroke(1.5.dp, Slate700),
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Column(
@@ -178,7 +183,7 @@ fun VideoAuditScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Count Badges & Resolution Toggle Row
+                    // Count Badges, Depth Stepper & Resolution Toggle Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,7 +193,7 @@ fun VideoAuditScreen(
                         Surface(
                             color = Slate900.copy(alpha = 0.9f),
                             shape = RoundedCornerShape(20.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Emerald500)
+                            border = BorderStroke(1.5.dp, Emerald500)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -196,7 +201,7 @@ fun VideoAuditScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = "${uiState.uniqueTrackedCount}",
+                                    text = "${uiState.frontFacings}",
                                     color = Emerald400,
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold
@@ -210,6 +215,12 @@ fun VideoAuditScreen(
                             }
                         }
 
+                        // Compact Depth Stepper
+                        CompactDepthStepper(
+                            depth = uiState.depthMultiplier,
+                            onDepthChange = { viewModel.setDepthMultiplier(it) }
+                        )
+
                         // Live Frame Detection Badge & Resolution Toggle
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -219,7 +230,7 @@ fun VideoAuditScreen(
                             Surface(
                                 color = Slate900.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Cyan400)
+                                border = BorderStroke(1.dp, Cyan400)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -244,7 +255,7 @@ fun VideoAuditScreen(
                             Surface(
                                 color = if (uiState.targetResolution == 640) Emerald500.copy(alpha = 0.2f) else Slate800,
                                 shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(
+                                border = BorderStroke(
                                     1.dp,
                                     if (uiState.targetResolution == 640) Emerald500 else Slate600
                                 ),
@@ -261,6 +272,54 @@ fun VideoAuditScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
+                            }
+                        }
+                    }
+
+                    // Link SKU Chip / Button Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.linkedBarcode != null) {
+                            Surface(
+                                color = Slate800.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Emerald500),
+                                modifier = Modifier.clickable { showBarcodeSheet = true }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Icon(Icons.Default.QrCode, contentDescription = null, tint = Emerald400, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = "${uiState.linkedProductName ?: uiState.linkedBarcode} (${uiState.linkedBarcode})",
+                                        color = Emerald400,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    IconButton(
+                                        onClick = { viewModel.clearLinkedProduct() },
+                                        modifier = Modifier.size(18.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate400, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { showBarcodeSheet = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate300),
+                                border = BorderStroke(1.dp, Slate700),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Cyan400, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = stringResource(R.string.btn_link_barcode_sku), fontSize = 12.sp, color = Slate200)
                             }
                         }
                     }
@@ -396,13 +455,109 @@ fun VideoAuditScreen(
                     )
                 },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "${stringResource(R.string.txt_unique_products)}: ${uiState.uniqueTrackedCount}",
-                            color = Emerald400,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // SKU & Variance Details (if SKU is linked)
+                        if (uiState.linkedBarcode != null) {
+                            Surface(
+                                color = Slate900,
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Emerald500.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = uiState.linkedProductName ?: uiState.linkedBarcode!!,
+                                        color = Emerald400,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "${stringResource(R.string.lbl_barcode_sku)}: ${uiState.linkedBarcode}",
+                                        color = Slate400,
+                                        fontSize = 11.sp
+                                    )
+                                    uiState.linkedExpectedStock?.let { expected ->
+                                        val variance = uiState.variance ?: (uiState.totalCountWithDepth - expected)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "${stringResource(R.string.lbl_expected_stock)}: $expected",
+                                                color = Slate300,
+                                                fontSize = 11.sp
+                                            )
+                                            Text(
+                                                text = "${stringResource(R.string.lbl_variance)}: ${if (variance >= 0) "+$variance" else "$variance"}",
+                                                color = if (variance >= 0) Emerald400 else Rose500,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                    uiState.totalFinancialValue?.let { value ->
+                                        Text(
+                                            text = "${stringResource(R.string.lbl_total_value)}: $${String.format(java.util.Locale.US, "%.2f", value)}",
+                                            color = Cyan400,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Shelf Depth Multiplier Stepper & Total Units Summary
+                        Surface(
+                            color = Slate900,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Slate700),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.lbl_shelf_depth),
+                                        color = Slate300,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    CompactDepthStepper(
+                                        depth = uiState.depthMultiplier,
+                                        onDepthChange = { viewModel.setDepthMultiplier(it) }
+                                    )
+                                }
+                                val summaryText = if (uiState.depthMultiplier > 1) {
+                                    stringResource(
+                                        R.string.calc_summary,
+                                        uiState.frontFacings,
+                                        uiState.depthMultiplier,
+                                        uiState.totalCountWithDepth
+                                    )
+                                } else {
+                                    stringResource(R.string.txt_total_units_simple, uiState.frontFacings)
+                                }
+                                Text(
+                                    text = summaryText,
+                                    color = Emerald400,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
 
                         OutlinedTextField(
                             value = shelfInput,
@@ -437,7 +592,19 @@ fun VideoAuditScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.saveSession(shelfInput, notesInput) {
+                            val syncPrefs = SyncPreferences(context)
+                            val syncConfig = syncPrefs.getSyncConfig()
+                            val initialStatus = if (syncConfig.enabled && syncConfig.autoSyncOnSave) "QUEUED" else "LOCAL_ONLY"
+
+                            viewModel.saveSession(
+                                shelfLocation = shelfInput,
+                                notes = notesInput,
+                                initialSyncStatus = initialStatus,
+                                context = context
+                            ) {
+                                if (initialStatus == "QUEUED") {
+                                    SyncAuditWorker.enqueueOneTimeSync(context)
+                                }
                                 showSaveDialog = false
                                 viewModel.reset()
                             }
@@ -451,6 +618,21 @@ fun VideoAuditScreen(
                     TextButton(onClick = { showSaveDialog = false }) {
                         Text(text = stringResource(R.string.btn_cancel), color = Slate400)
                     }
+                }
+            )
+        }
+
+        // Barcode / SKU Scan & Lookup Sheet
+        if (showBarcodeSheet) {
+            BarcodeScanSheet(
+                initialBarcode = uiState.linkedBarcode,
+                initialProductName = uiState.linkedProductName,
+                initialExpectedStock = uiState.linkedExpectedStock,
+                initialUnitPrice = uiState.linkedUnitPrice,
+                onDismiss = { showBarcodeSheet = false },
+                onConfirm = { barcode, productName, brand, stock, price ->
+                    viewModel.linkSku(barcode, productName, brand, stock, price)
+                    showBarcodeSheet = false
                 }
             )
         }
