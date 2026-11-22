@@ -234,6 +234,8 @@ static float iou_distance(const std::vector<float>& box_a, const std::vector<flo
 // Greedy IoU matching for robust association
 static void linear_assignment(
     const std::vector<std::vector<float>>& cost_matrix,
+    size_t num_a,
+    size_t num_b,
     float thresh,
     std::vector<std::pair<int, int>>& matches,
     std::vector<int>& unmatched_a,
@@ -243,13 +245,14 @@ static void linear_assignment(
     unmatched_a.clear();
     unmatched_b.clear();
 
-    if (cost_matrix.empty() || cost_matrix[0].empty()) {
-        for (size_t i = 0; i < cost_matrix.size(); i++) unmatched_a.push_back(i);
+    if (num_a == 0) {
+        for (size_t j = 0; j < num_b; j++) unmatched_b.push_back((int)j);
         return;
     }
-
-    size_t num_a = cost_matrix.size();
-    size_t num_b = cost_matrix[0].size();
+    if (num_b == 0) {
+        for (size_t i = 0; i < num_a; i++) unmatched_a.push_back((int)i);
+        return;
+    }
 
     std::vector<bool> used_a(num_a, false);
     std::vector<bool> used_b(num_b, false);
@@ -283,10 +286,10 @@ static void linear_assignment(
     }
 
     for (size_t i = 0; i < num_a; i++) {
-        if (!used_a[i]) unmatched_a.push_back(i);
+        if (!used_a[i]) unmatched_a.push_back((int)i);
     }
     for (size_t j = 0; j < num_b; j++) {
-        if (!used_b[j]) unmatched_b.push_back(j);
+        if (!used_b[j]) unmatched_b.push_back((int)j);
     }
 }
 
@@ -333,18 +336,21 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
     STrack::multi_predict(strack_pool, kalman_filter_);
 
     // 1st association: High score detections with tracked stracks
-    std::vector<std::vector<float>> dists1(tracked_stracks_.size(), std::vector<float>(detections_high.size(), 1.0f));
-    for (size_t i = 0; i < tracked_stracks_.size(); i++) {
-        auto tlbr_a = tracked_stracks_[i].tlbr();
-        for (size_t j = 0; j < detections_high.size(); j++) {
-            auto tlbr_b = detections_high[j].tlbr();
-            dists1[i][j] = iou_distance(tlbr_a, tlbr_b);
+    std::vector<std::vector<float>> dists1;
+    if (!tracked_stracks_.empty() && !detections_high.empty()) {
+        dists1.assign(tracked_stracks_.size(), std::vector<float>(detections_high.size(), 1.0f));
+        for (size_t i = 0; i < tracked_stracks_.size(); i++) {
+            auto tlbr_a = tracked_stracks_[i].tlbr();
+            for (size_t j = 0; j < detections_high.size(); j++) {
+                auto tlbr_b = detections_high[j].tlbr();
+                dists1[i][j] = iou_distance(tlbr_a, tlbr_b);
+            }
         }
     }
 
     std::vector<std::pair<int, int>> matches1;
     std::vector<int> u_track1, u_detection1;
-    linear_assignment(dists1, match_thresh_, matches1, u_track1, u_detection1);
+    linear_assignment(dists1, tracked_stracks_.size(), detections_high.size(), match_thresh_, matches1, u_track1, u_detection1);
 
     for (const auto& match : matches1) {
         tracked_stracks_[match.first].update(detections_high[match.second], frame_id_);
@@ -359,18 +365,21 @@ std::vector<STrack> BYTETracker::update(const std::vector<STrack>& detections) {
         }
     }
 
-    std::vector<std::vector<float>> dists2(r_tracked_stracks.size(), std::vector<float>(detections_low.size(), 1.0f));
-    for (size_t i = 0; i < r_tracked_stracks.size(); i++) {
-        auto tlbr_a = r_tracked_stracks[i]->tlbr();
-        for (size_t j = 0; j < detections_low.size(); j++) {
-            auto tlbr_b = detections_low[j].tlbr();
-            dists2[i][j] = iou_distance(tlbr_a, tlbr_b);
+    std::vector<std::vector<float>> dists2;
+    if (!r_tracked_stracks.empty() && !detections_low.empty()) {
+        dists2.assign(r_tracked_stracks.size(), std::vector<float>(detections_low.size(), 1.0f));
+        for (size_t i = 0; i < r_tracked_stracks.size(); i++) {
+            auto tlbr_a = r_tracked_stracks[i]->tlbr();
+            for (size_t j = 0; j < detections_low.size(); j++) {
+                auto tlbr_b = detections_low[j].tlbr();
+                dists2[i][j] = iou_distance(tlbr_a, tlbr_b);
+            }
         }
     }
 
     std::vector<std::pair<int, int>> matches2;
     std::vector<int> u_track2, u_detection2;
-    linear_assignment(dists2, 0.5f, matches2, u_track2, u_detection2);
+    linear_assignment(dists2, r_tracked_stracks.size(), detections_low.size(), 0.5f, matches2, u_track2, u_detection2);
 
     for (const auto& match : matches2) {
         r_tracked_stracks[match.first]->update(detections_low[match.second], frame_id_);
